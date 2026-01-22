@@ -1,0 +1,1632 @@
+@import 'tailwindcss';
+
+/*
+ * Design System based on Notion's aesthetic:
+ * - Seamless, invisible inputs
+ * - Paper-like writing experience
+ * - System fonts for native feel
+ * - Precise typography with tight letter-spacing
+ */
+
+@theme {
+	/* Spacing scale (8px base unit) */
+	--spacing-1: 0.25rem;  /* 4px */
+	--spacing-2: 0.5rem;   /* 8px */
+	--spacing-3: 0.75rem;  /* 12px */
+	--spacing-4: 1rem;     /* 16px */
+	--spacing-6: 1.5rem;   /* 24px */
+	--spacing-8: 2rem;     /* 32px */
+	--spacing-12: 3rem;    /* 48px */
+	--spacing-16: 4rem;    /* 64px */
+	--spacing-24: 6rem;    /* 96px */
+
+	/* Notion's Typography - System fonts for native feel */
+	--font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
+	--font-serif: Lyon-Text, Georgia, ui-serif, serif;
+	--font-mono: iawriter-mono, Nitti, Menlo, Courier, monospace;
+
+	/* Default colors */
+	--color-bg: #191919;
+	--color-surface: #202020;
+	--color-surface-elevated: #2f2f2f;
+	--color-text: rgba(255, 255, 255, 0.9);
+	--color-text-secondary: rgba(255, 255, 255, 0.6);
+	--color-text-tertiary: rgba(255, 255, 255, 0.35);
+	--color-accent: #2eaadc;
+	--color-border: rgba(255, 255, 255, 0.094);
+	--color-success: #4dab9a;
+	--color-missed: #ff7369;
+}
+
+/* ========================================
+   NOTION-STYLE THEME
+   Seamless writing experience
+   ======================================== */
+
+:root {
+	/* Light theme (Notion default) */
+	--bg: #FFFFFF;
+	--bg-page: rgb(251, 251, 250);
+	--surface: #FFFFFF;
+	--surface-elevated: rgba(55, 53, 47, 0.04);
+	--text: rgb(55, 53, 47);
+	--text-secondary: rgba(55, 53, 47, 0.65);
+	--text-tertiary: rgba(55, 53, 47, 0.4);
+	--text-placeholder: rgba(55, 53, 47, 0.4);
+	--accent: rgb(35, 131, 226);
+	--border: rgba(55, 53, 47, 0.09);
+	--success: #0f7b6c;
+	--missed: #e03e3e;
+	
+	/* Sidebar - Notion's warmer gray */
+	--sidebar-bg: #F7F6F3;
+	
+	/* Spacing tokens */
+	--space-xs: 0.25rem;
+	--space-sm: 0.5rem;
+	--space-md: 1rem;
+	--space-lg: 1.5rem;
+	--space-xl: 2rem;
+	--space-2xl: 3rem;
+	--space-3xl: 4rem;
+	
+	/* Typography sizes */
+	--text-xs: 0.75rem;
+	--text-sm: 0.875rem;
+	--text-base: 1rem;
+	--text-lg: 1.125rem;
+	--text-xl: 1.25rem;
+	--text-2xl: 1.5rem;
+	--text-3xl: 2rem;
+	
+	/* Line heights - Notion precise */
+	--leading-tight: 1.3;
+	--leading-normal: 1.5;
+	--leading-relaxed: 1.625;
+	
+	/* Letter spacing - Notion's tight spacing */
+	--tracking-tight: -0.003em;
+	--tracking-normal: 0;
+	
+	/* Border radius */
+	--radius-sm: 3px;
+	--radius-md: 4px;
+	--radius-lg: 6px;
+	
+	/* Transitions */
+	--transition-fast: 100ms ease;
+	--transition-normal: 150ms ease;
+	
+	/* No page shadow - Notion is flat */
+	--page-shadow: none;
+}
+
+/* Dark mode */
+:root.dark {
+	--bg: #191919;
+	--bg-page: #191919;
+	--surface: #202020;
+	--surface-elevated: rgba(255, 255, 255, 0.04);
+	--text: rgba(255, 255, 255, 0.9);
+	--text-secondary: rgba(255, 255, 255, 0.6);
+	--text-tertiary: rgba(255, 255, 255, 0.4);
+	--text-placeholder: rgba(255, 255, 255, 0.4);
+	--accent: rgb(35, 131, 226);
+	--border: rgba(255, 255, 255, 0.094);
+	--success: #4dab9a;
+	--missed: #ff7369;
+	
+	/* Sidebar - Notion dark sidebar */
+	--sidebar-bg: #25282B;
+	
+	/* No page shadow in dark mode either */
+	--page-shadow: none;
+}
+
+/* Ritual theme (light mode default) - for journal writing */
+:root.ritual {
+	--bg: #FFFFFF;
+	--bg-page: #FFFFFF;
+	--surface: #FFFFFF;
+	--surface-elevated: rgba(55, 53, 47, 0.04);
+	--text: rgb(55, 53, 47);
+	--text-secondary: rgba(55, 53, 47, 0.65);
+	--text-tertiary: rgba(55, 53, 47, 0.4);
+	--text-placeholder: rgba(55, 53, 47, 0.4);
+	--accent: rgb(35, 131, 226);
+	--border: rgba(55, 53, 47, 0.09);
+	--success: #0f7b6c;
+	--missed: #e03e3e;
+	
+	/* Sidebar - Notion's warmer gray */
+	--sidebar-bg: #F7F6F3;
+	
+	/* No page shadow - flat like Notion */
+	--page-shadow: none;
+}
+
+/* Ritual dark mode */
+:root.ritual.dark {
+	--bg: #191919;
+	--bg-page: #191919;
+	--surface: #202020;
+	--surface-elevated: rgba(255, 255, 255, 0.04);
+	--text: rgba(255, 255, 255, 0.9);
+	--text-secondary: rgba(255, 255, 255, 0.6);
+	--text-tertiary: rgba(255, 255, 255, 0.4);
+	--text-placeholder: rgba(255, 255, 255, 0.4);
+	--accent: rgb(35, 131, 226);
+	--border: rgba(255, 255, 255, 0.094);
+	--success: #4dab9a;
+	--missed: #ff7369;
+	
+	/* Sidebar - Notion dark sidebar */
+	--sidebar-bg: #25282B;
+	
+	/* No page shadow */
+	--page-shadow: none;
+}
+
+/* Base reset */
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+html {
+	font-family: var(--font-sans);
+	font-size: 16px;
+	line-height: var(--leading-normal);
+	letter-spacing: var(--tracking-tight);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+}
+
+body {
+	background-color: var(--bg);
+	color: var(--text);
+	min-height: 100vh;
+}
+
+/* Minimal scrollbar - Notion style */
+::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+	background: transparent;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--border);
+	border-radius: 9999px;
+	border: 2px solid transparent;
+	background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--text-tertiary);
+	border: 2px solid transparent;
+	background-clip: content-box;
+}
+
+/* Typography utilities */
+.font-serif {
+	font-family: var(--font-serif);
+}
+
+.font-mono {
+	font-family: var(--font-mono);
+}
+
+/* Input styles - Notion-style seamless */
+input, textarea, select {
+	background-color: transparent;
+	border: none;
+	color: var(--text);
+	padding: 3px 2px;
+	font-family: inherit;
+	font-size: 1rem;
+	width: 100%;
+	line-height: 1.5;
+	letter-spacing: var(--tracking-tight);
+}
+
+input:focus, textarea:focus, select:focus {
+	outline: none;
+}
+
+input::placeholder, textarea::placeholder {
+	color: var(--text-placeholder);
+}
+
+textarea {
+	resize: none;
+	overflow: hidden;
+}
+
+/* Button base - unobtrusive */
+button {
+	cursor: pointer;
+	font-family: inherit;
+	font-size: 0.875rem;
+	border: none;
+	background: none;
+	color: inherit;
+	transition: background var(--transition-fast);
+	letter-spacing: var(--tracking-tight);
+}
+
+button:disabled {
+	cursor: not-allowed;
+	opacity: 0.4;
+}
+
+/* Selection - Notion style blue */
+::selection {
+	background-color: rgba(35, 131, 226, 0.28);
+}
+
+/* Focus visible for accessibility - subtle and warm */
+:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 1.5px rgba(180, 150, 120, 0.4);
+	border-radius: var(--radius-sm);
+}
+
+.dark :focus-visible {
+	box-shadow: 0 0 0 1.5px rgba(200, 170, 130, 0.3);
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+@keyframes fadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes slideUp {
+	from { 
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to { 
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes shake {
+	0%, 100% { transform: translateX(0); }
+	10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+	20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+@keyframes spin {
+	to { transform: rotate(360deg); }
+}
+
+.animate-fade-in {
+	animation: fadeIn 200ms ease forwards;
+}
+
+.animate-slide-up {
+	animation: slideUp 200ms ease forwards;
+}
+
+.shake {
+	animation: shake 0.4s ease-in-out;
+}
+
+.animate-spin {
+	animation: spin 0.8s linear infinite;
+}
+
+/* ========================================
+   NOTION-STYLE PAGE LAYOUT
+   Core layout components used across pages
+   ======================================== */
+
+.notion-page {
+	min-height: 100vh;
+	background: var(--bg);
+	display: flex;
+	position: relative;
+}
+
+.main-area {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-height: 100vh;
+}
+
+/* Content area - no header bar */
+.content {
+	flex: 1;
+	overflow-y: auto;
+	display: flex;
+	justify-content: center;
+}
+
+/* ========================================
+   MESSAGE STATES
+   Loading, error, and info states
+   ======================================== */
+
+.message-container {
+	text-align: center;
+	padding: 48px 24px;
+	margin-top: 20vh;
+}
+
+.message-title {
+	color: var(--text-secondary);
+	font-size: 1.125rem;
+	margin: 0 0 8px;
+	font-weight: 500;
+}
+
+.message-text {
+	color: var(--text-tertiary);
+	margin: 0;
+	line-height: 1.6;
+}
+
+.spinner {
+	width: 20px;
+	height: 20px;
+	border: 2px solid var(--border);
+	border-top-color: var(--text-tertiary);
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+	margin: 0 auto;
+}
+
+/* ========================================
+   PAGE CONTAINER
+   Like Notion's document container
+   ======================================== */
+
+.page-container {
+	width: 100%;
+	max-width: 900px;
+	padding: 0 96px;
+}
+
+/* Floating header inside page */
+.page-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 80px 0 32px;
+}
+
+.page-meta {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.875rem;
+	letter-spacing: -0.003em;
+}
+
+.meta-time {
+	font-family: var(--font-mono);
+	font-weight: 500;
+	color: var(--text);
+	font-size: 0.8125rem;
+}
+
+.meta-sep {
+	color: var(--text-tertiary);
+}
+
+.meta-date {
+	color: var(--text-secondary);
+}
+
+.meta-year {
+	color: var(--text-tertiary);
+}
+
+.page-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.page-location {
+	margin-top: 4px;
+	font-size: 0.8125rem;
+	color: var(--text-tertiary);
+}
+
+.location-select {
+	padding: 4px 8px;
+	background: transparent;
+	border: none;
+	border-radius: 3px;
+	color: var(--text-tertiary);
+	font-size: 0.875rem;
+	cursor: pointer;
+	transition: all 0.1s;
+}
+
+.location-select:hover {
+	background: var(--surface-elevated);
+	color: var(--text-secondary);
+}
+
+/* ========================================
+   PAGE CONTENT
+   ======================================== */
+
+.page-content {
+	padding-bottom: 100px;
+}
+
+/* ========================================
+   BLOCK
+   Each question/field section
+   ======================================== */
+
+.block {
+	position: relative;
+	margin-bottom: 2px;
+}
+
+/* Block hover controls */
+.block-controls {
+	position: absolute;
+	left: -32px;
+	top: 4px;
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	opacity: 0;
+	transition: opacity 0.1s;
+}
+
+.block:hover > .block-controls,
+.field-block:hover > .block-controls {
+	opacity: 1;
+}
+
+.block-handle {
+	width: 18px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 3px;
+	color: var(--text-tertiary);
+	cursor: grab;
+	transition: background 0.1s;
+}
+
+.block-handle:hover {
+	background: var(--surface-elevated);
+	color: var(--text-secondary);
+}
+
+/* ========================================
+   TOGGLE
+   Notion's toggle block style
+   ======================================== */
+
+.toggle-header {
+	display: flex;
+	align-items: flex-start;
+	gap: 2px;
+	width: 100%;
+	text-align: left;
+	padding: 3px 2px;
+	margin-left: -2px;
+	border-radius: 3px;
+	transition: background 0.1s;
+	cursor: pointer;
+}
+
+.toggle-header:hover {
+	background: rgba(55, 53, 47, 0.04);
+}
+
+.dark .toggle-header:hover {
+	background: rgba(255, 255, 255, 0.03);
+}
+
+/* Filled triangle icon - Notion style */
+.toggle-icon {
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-tertiary);
+	transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+	flex-shrink: 0;
+	border-radius: 3px;
+}
+
+.toggle-icon:hover {
+	background: var(--surface-elevated);
+}
+
+.toggle-icon.open {
+	transform: rotate(90deg);
+}
+
+.toggle-title {
+	font-size: 1rem;
+	font-weight: 600;
+	color: var(--text);
+	line-height: 1.5;
+	letter-spacing: -0.003em;
+}
+
+.toggle-title.legacy {
+	font-weight: 500;
+	color: var(--text-secondary);
+	font-size: 0.875rem;
+}
+
+.toggle-number {
+	color: var(--text-tertiary);
+}
+
+/* Toggle content - indented */
+.toggle-content {
+	padding-left: 24px;
+	padding-top: 2px;
+	padding-bottom: 8px;
+}
+
+/* ========================================
+   FIELD BLOCK
+   Individual input fields
+   ======================================== */
+
+.field-block {
+	position: relative;
+	margin-bottom: 4px;
+}
+
+.field-block > .block-controls {
+	top: 2px;
+}
+
+.field-label {
+	font-size: 0.875rem;
+	color: var(--text-secondary);
+	margin-bottom: 2px;
+	padding-left: 2px;
+	letter-spacing: -0.003em;
+}
+
+/* ========================================
+   CONTENTEDITABLE INPUT
+   Notion's seamless feel
+   ======================================== */
+
+.field-input {
+	display: block;
+	width: 100%;
+	min-height: 1.5em;
+	padding: 4px 6px;
+	font-size: 1rem;
+	line-height: 1.5;
+	letter-spacing: -0.003em;
+	color: var(--text);
+	background: transparent;
+	border: none;
+	border-radius: 3px;
+	outline: none;
+	white-space: pre-wrap;
+	word-break: break-word;
+	caret-color: var(--text);
+}
+
+/* Fix cursor position in empty contenteditable */
+.field-input:empty::before {
+	content: '\200B'; /* zero-width space */
+}
+
+/* Placeholder via CSS for contenteditable */
+.field-input:empty::before {
+	content: attr(data-placeholder);
+	color: var(--text-placeholder, var(--text-tertiary));
+	pointer-events: none;
+}
+
+/* Subtle focus background - Notion style */
+.field-input:focus {
+	background: rgba(55, 53, 47, 0.024);
+}
+
+.dark .field-input:focus {
+	background: rgba(255, 255, 255, 0.03);
+}
+
+/* ========================================
+   FIELD VALUE
+   Read-only display of field content
+   ======================================== */
+
+.field-value {
+	font-size: 1rem;
+	line-height: 1.5;
+	letter-spacing: -0.003em;
+	color: var(--text);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+/* ========================================
+   SAVE SECTION
+   ======================================== */
+
+.save-section {
+	margin-top: 48px;
+	padding-top: 24px;
+	border-top: 1px solid var(--border);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+}
+
+.error {
+	color: var(--missed);
+	font-size: 0.875rem;
+	margin: 0;
+}
+
+.save-btn {
+	padding: 8px 16px;
+	border-radius: 3px;
+	font-size: 0.875rem;
+	font-weight: 500;
+	transition: all 0.1s;
+	background: rgba(55, 53, 47, 0.04);
+	color: var(--text-tertiary);
+	cursor: not-allowed;
+}
+
+.dark .save-btn {
+	background: rgba(255, 255, 255, 0.04);
+}
+
+.save-btn.ready {
+	background: rgb(35, 131, 226);
+	color: white;
+	cursor: pointer;
+}
+
+.save-btn.ready:hover {
+	background: rgb(0, 117, 211);
+}
+
+/* ========================================
+   PROGRESS PILL
+   ======================================== */
+
+.progress-pill {
+	position: fixed;
+	bottom: 20px;
+	right: 20px;
+	background: var(--surface);
+	padding: 6px 10px;
+	border-radius: 4px;
+	font-size: 0.75rem;
+	z-index: 50;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	box-shadow: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px;
+}
+
+.dark .progress-pill {
+	box-shadow: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 3px 6px;
+}
+
+.progress-count {
+	font-weight: 600;
+	color: rgb(35, 131, 226);
+}
+
+.progress-text {
+	color: var(--text-secondary);
+}
+
+/* ========================================
+   NAVIGATION BUTTONS
+   Floating action buttons
+   ======================================== */
+
+.nav-btn {
+	position: fixed;
+	width: 32px;
+	height: 32px;
+	border-radius: 4px;
+	background: var(--surface);
+	color: var(--text-tertiary);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px;
+	transition: all 0.1s;
+	z-index: 50;
+}
+
+.dark .nav-btn {
+	box-shadow: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 3px 6px;
+}
+
+.nav-btn:hover {
+	color: var(--text);
+	background: var(--surface-elevated);
+}
+
+.nav-btn.back {
+	bottom: 20px;
+	left: 20px;
+}
+
+/* ========================================
+   SIDEBAR TOGGLE BUTTON
+   ======================================== */
+
+.sidebar-toggle {
+	position: fixed;
+	top: 12px;
+	right: 12px;
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-tertiary);
+	border-radius: 4px;
+	transition: all 0.1s;
+	z-index: 50;
+}
+
+.sidebar-toggle:hover {
+	background: var(--surface-elevated);
+	color: var(--text);
+}
+
+/* ========================================
+   SIDEBAR
+   Notion's sidebar style
+   ======================================== */
+
+.sidebar {
+	position: fixed;
+	top: 0;
+	right: 0;
+	width: 280px;
+	height: 100vh;
+	background: var(--sidebar-bg, #F7F6F3);
+	border-left: 1px solid var(--border);
+	transform: translateX(100%);
+	transition: transform 0.2s ease;
+	z-index: 100;
+	overflow-y: auto;
+}
+
+.dark .sidebar {
+	background: #25282B;
+}
+
+.sidebar.open {
+	transform: translateX(0);
+}
+
+.sidebar-inner {
+	padding: 16px;
+}
+
+.sidebar-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	margin-bottom: 12px;
+	position: relative;
+}
+
+.sidebar-title {
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--text);
+	margin: 0 0 2px;
+	letter-spacing: -0.003em;
+}
+
+.sidebar-stats {
+	font-size: 0.6875rem;
+	color: var(--text-tertiary);
+}
+
+/* Settings Button */
+.settings-btn {
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-tertiary);
+	border-radius: 4px;
+	transition: all 0.1s;
+	flex-shrink: 0;
+}
+
+.settings-btn:hover {
+	background: rgba(55, 53, 47, 0.08);
+	color: var(--text-secondary);
+}
+
+.dark .settings-btn:hover {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+/* Settings Modal Overlay */
+.settings-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(15, 15, 15, 0.6);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+	animation: fadeIn 150ms ease;
+	padding: 24px;
+}
+
+.dark .settings-overlay {
+	background: rgba(0, 0, 0, 0.7);
+}
+
+/* Settings Modal */
+.settings-modal {
+	width: 100%;
+	max-width: 520px;
+	max-height: calc(100vh - 48px);
+	background: var(--surface);
+	border-radius: 12px;
+	box-shadow: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, 
+	            rgba(15, 15, 15, 0.1) 0px 5px 10px, 
+	            rgba(15, 15, 15, 0.2) 0px 15px 40px;
+	display: flex;
+	flex-direction: column;
+	animation: modalSlideUp 200ms cubic-bezier(0.32, 0.72, 0, 1);
+	overflow: hidden;
+}
+
+.dark .settings-modal {
+	background: #2f2f2f;
+	box-shadow: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, 
+	            rgba(0, 0, 0, 0.3) 0px 5px 10px, 
+	            rgba(0, 0, 0, 0.5) 0px 15px 40px;
+}
+
+@keyframes modalSlideUp {
+	from {
+		opacity: 0;
+		transform: translateY(8px) scale(0.98);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+.settings-modal-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 16px 20px;
+	border-bottom: 1px solid var(--border);
+}
+
+.settings-modal-title {
+	font-size: 1rem;
+	font-weight: 600;
+	color: var(--text);
+	margin: 0;
+	letter-spacing: -0.01em;
+}
+
+.settings-close-btn {
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-tertiary);
+	border-radius: 4px;
+	transition: all 0.1s;
+}
+
+.settings-close-btn:hover {
+	background: rgba(55, 53, 47, 0.08);
+	color: var(--text);
+}
+
+.dark .settings-close-btn:hover {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.settings-modal-content {
+	padding: 20px;
+	min-height: 300px;
+	overflow-y: auto;
+}
+
+/* ========================================
+   TRACKER
+   Year progress visualization
+   ======================================== */
+
+.tracker {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px;
+	margin-bottom: 6px;
+}
+
+.tracker-day {
+	width: 8px;
+	height: 8px;
+	border-radius: 2px;
+	background: var(--border);
+}
+
+.tracker-day.completed {
+	background: var(--success);
+	cursor: pointer;
+}
+
+.tracker-day.missed {
+	background: var(--border);
+	opacity: 0.3;
+}
+
+.tracker-day.future {
+	background: var(--border);
+	opacity: 0.1;
+}
+
+.tracker-day.today {
+	background: rgb(35, 131, 226);
+}
+
+/* ========================================
+   LEGEND
+   ======================================== */
+
+.legend {
+	display: flex;
+	gap: 10px;
+	font-size: 0.5625rem;
+	color: var(--text-tertiary);
+	margin-bottom: 16px;
+}
+
+.legend span {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+}
+
+.legend-dot {
+	width: 5px;
+	height: 5px;
+	border-radius: 1px;
+}
+
+.legend-dot.completed {
+	background: var(--success);
+}
+
+.legend-dot.missed {
+	background: var(--border);
+	opacity: 0.3;
+}
+
+/* ========================================
+   RECENT ENTRIES
+   ======================================== */
+
+.recent-heading {
+	font-size: 0.625rem;
+	font-weight: 600;
+	color: var(--text-tertiary);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin: 0 0 6px;
+}
+
+.recent {
+	display: flex;
+	flex-direction: column;
+}
+
+.recent-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 6px 8px;
+	border-radius: 4px;
+	font-size: 0.75rem;
+	color: var(--text);
+	transition: background 0.1s;
+	width: 100%;
+	text-align: left;
+}
+
+button.recent-item:hover {
+	background: rgba(55, 53, 47, 0.04);
+}
+
+.dark button.recent-item:hover {
+	background: rgba(255, 255, 255, 0.04);
+}
+
+.recent-item.completed .recent-date-text {
+	color: var(--success);
+}
+
+.recent-item.missed .recent-date-text {
+	color: var(--missed);
+	opacity: 0.7;
+}
+
+.recent-info {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.recent-year {
+	color: var(--text-tertiary);
+	font-size: 0.6875rem;
+}
+
+.recent-time {
+	color: var(--text-secondary);
+	font-size: 0.6875rem;
+	font-family: var(--font-mono);
+}
+
+.recent-time::before {
+	content: '·';
+	margin: 0 5px;
+	color: var(--text-tertiary);
+}
+
+/* ========================================
+   EDGE TRIGGER
+   ======================================== */
+
+.edge-trigger {
+	position: fixed;
+	top: 0;
+	right: 0;
+	width: 8px;
+	height: 100vh;
+	z-index: 98;
+	cursor: e-resize;
+}
+
+/* ========================================
+   THEME BUTTON
+   ======================================== */
+
+.theme-btn {
+	position: fixed;
+	bottom: 20px;
+	left: 20px;
+	width: 32px;
+	height: 32px;
+	border-radius: 4px;
+	background: var(--surface);
+	color: var(--text-tertiary);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px;
+	transition: all 0.1s;
+	z-index: 50;
+}
+
+.dark .theme-btn {
+	box-shadow: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 3px 6px;
+}
+
+.theme-btn:hover {
+	color: var(--text);
+	background: var(--surface-elevated);
+}
+
+/* ========================================
+   BACK LINK
+   Text-based back navigation
+   ======================================== */
+
+.back-link {
+	color: var(--text-tertiary);
+	font-size: 0.875rem;
+	transition: color 0.1s;
+}
+
+.back-link:hover {
+	color: var(--text);
+}
+
+/* ========================================
+   LEGACY SECTION
+   For displaying old template entries
+   ======================================== */
+
+.legacy-section {
+	margin-top: 32px;
+	padding-top: 24px;
+	border-top: 1px solid var(--border);
+}
+
+/* ========================================
+   GPS CAPTURE BUTTON (Main Page)
+   ======================================== */
+
+/* ========================================
+   CUSTOM LOCATION DROPDOWN (Notion-style)
+   ======================================== */
+
+.location-dropdown {
+	position: relative;
+}
+
+.location-dropdown-trigger {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 8px;
+	border-radius: 4px;
+	font-size: 0.875rem;
+	color: var(--text-tertiary);
+	transition: background 0.1s;
+	min-width: 0;
+}
+
+.location-dropdown-trigger:hover {
+	background: var(--surface-elevated);
+	color: var(--text-secondary);
+}
+
+.location-dropdown.open .location-dropdown-trigger {
+	background: var(--surface-elevated);
+}
+
+.location-dropdown-value {
+	color: var(--text);
+}
+
+.location-dropdown-placeholder {
+	color: var(--text-tertiary);
+}
+
+.location-dropdown-arrow {
+	flex-shrink: 0;
+	opacity: 0.5;
+	transition: transform 0.15s ease;
+}
+
+.location-dropdown.open .location-dropdown-arrow {
+	transform: rotate(180deg);
+}
+
+.location-dropdown-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 99;
+}
+
+.location-dropdown-menu {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	min-width: 180px;
+	max-width: 280px;
+	background: var(--surface);
+	border-radius: 6px;
+	box-shadow: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, 
+	            rgba(15, 15, 15, 0.1) 0px 3px 6px, 
+	            rgba(15, 15, 15, 0.2) 0px 9px 24px;
+	z-index: 100;
+	padding: 4px;
+	animation: dropdownFadeIn 0.15s ease;
+}
+
+.dark .location-dropdown-menu {
+	background: #2f2f2f;
+	box-shadow: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, 
+	            rgba(0, 0, 0, 0.2) 0px 3px 6px, 
+	            rgba(0, 0, 0, 0.4) 0px 9px 24px;
+}
+
+@keyframes dropdownFadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.location-dropdown-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	padding: 6px 10px;
+	border-radius: 4px;
+	font-size: 0.875rem;
+	color: var(--text);
+	text-align: left;
+	transition: background 0.08s;
+}
+
+.location-dropdown-item:hover {
+	background: var(--surface-elevated);
+}
+
+.location-dropdown-item.selected {
+	color: var(--accent);
+}
+
+.location-dropdown-item.clear {
+	color: var(--text-tertiary);
+	font-size: 0.8125rem;
+	border-bottom: 1px solid var(--border);
+	border-radius: 4px 4px 0 0;
+	margin-bottom: 4px;
+	padding-bottom: 8px;
+}
+
+.location-dropdown-empty {
+	padding: 12px;
+	font-size: 0.8125rem;
+	color: var(--text-tertiary);
+	text-align: center;
+	line-height: 1.5;
+}
+
+.location-dropdown-empty span {
+	color: var(--text-secondary);
+}
+
+.gps-capture-btn {
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 4px;
+	color: var(--text-tertiary);
+	transition: all 0.1s;
+	flex-shrink: 0;
+}
+
+.gps-capture-btn:hover:not(:disabled) {
+	background: var(--surface-elevated);
+	color: var(--text);
+}
+
+.gps-capture-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.captured-location {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	background: rgba(35, 131, 226, 0.1);
+	border-radius: 4px;
+	font-size: 0.75rem;
+}
+
+.captured-label {
+	color: var(--accent);
+	font-family: var(--font-mono);
+}
+
+.captured-clear {
+	width: 18px;
+	height: 18px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 3px;
+	color: var(--text-tertiary);
+	font-size: 1rem;
+	line-height: 1;
+}
+
+.captured-clear:hover {
+	background: rgba(55, 53, 47, 0.08);
+	color: var(--text);
+}
+
+.dark .captured-clear:hover {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+/* GPS Spinner */
+.gps-spinner {
+	width: 14px;
+	height: 14px;
+	border: 2px solid var(--border);
+	border-top-color: var(--accent);
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+}
+
+/* ========================================
+   SETTINGS MODAL CONTENT
+   ======================================== */
+
+.settings-section-title {
+	font-size: 0.6875rem;
+	font-weight: 600;
+	color: var(--text-tertiary);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin: 0 0 12px;
+}
+
+/* Location List - Clean & Minimal */
+.location-list {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	margin-bottom: 16px;
+}
+
+.location-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 8px 10px;
+	border-radius: 4px;
+	transition: background 0.1s;
+}
+
+.location-item:hover {
+	background: var(--surface-elevated);
+}
+
+.location-item:hover .location-delete-btn {
+	opacity: 1;
+}
+
+.location-info {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+}
+
+.location-name {
+	font-size: 0.875rem;
+	color: var(--text);
+}
+
+.location-meta {
+	font-size: 0.75rem;
+	color: var(--text-tertiary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.location-delete-btn {
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 4px;
+	color: var(--text-tertiary);
+	flex-shrink: 0;
+	opacity: 0;
+	transition: all 0.1s;
+}
+
+.location-delete-btn:hover {
+	background: rgba(224, 62, 62, 0.1);
+	color: var(--missed);
+}
+
+/* Add Location Row - Inline Input + GPS Button */
+.add-location-row {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.add-location-input {
+	flex: 1;
+	padding: 8px 10px;
+	background: transparent;
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	font-size: 0.875rem;
+	color: var(--text);
+}
+
+.add-location-input:focus {
+	border-color: var(--accent);
+	outline: none;
+}
+
+.add-location-input::placeholder {
+	color: var(--text-tertiary);
+}
+
+.add-location-gps-btn {
+	width: 36px;
+	height: 36px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--accent);
+	border-radius: 4px;
+	color: white;
+	flex-shrink: 0;
+	transition: all 0.1s;
+}
+
+.add-location-gps-btn:hover:not(:disabled) {
+	background: rgb(0, 117, 211);
+}
+
+.add-location-gps-btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.gps-spinner-small {
+	width: 14px;
+	height: 14px;
+	border: 2px solid rgba(255, 255, 255, 0.3);
+	border-top-color: white;
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+}
+
+.location-error {
+	font-size: 0.75rem;
+	color: var(--missed);
+	margin: 0 0 8px;
+}
+
+/* Manual Entry Toggle */
+.manual-entry-toggle {
+	font-size: 0.75rem;
+	color: var(--text-tertiary);
+	padding: 4px 0;
+	transition: color 0.1s;
+}
+
+.manual-entry-toggle:hover {
+	color: var(--text-secondary);
+}
+
+/* Manual Entry Form */
+.manual-entry-form {
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px solid var(--border);
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.manual-entry-row {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+}
+
+.manual-input {
+	padding: 8px 10px;
+	background: transparent;
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	font-size: 0.875rem;
+	color: var(--text);
+}
+
+.manual-input:focus {
+	border-color: var(--accent);
+	outline: none;
+}
+
+.manual-input::placeholder {
+	color: var(--text-tertiary);
+}
+
+.manual-input.full {
+	grid-column: 1 / -1;
+}
+
+.manual-save-btn {
+	padding: 8px 16px;
+	background: var(--surface-elevated);
+	border-radius: 4px;
+	font-size: 0.875rem;
+	color: var(--text);
+	transition: all 0.1s;
+	align-self: flex-end;
+}
+
+.manual-save-btn:hover:not(:disabled) {
+	background: var(--border);
+}
+
+.manual-save-btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+/* ========================================
+   MOBILE RESPONSIVE
+   ======================================== */
+
+@media (max-width: 860px) {
+	.page-container {
+		padding: 0 24px;
+	}
+	
+	.page-header {
+		padding: 48px 0 24px;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 12px;
+	}
+	
+	.block-controls {
+		display: none;
+	}
+	
+	.sidebar {
+		width: 100%;
+		max-width: 260px;
+	}
+	
+	.progress-pill {
+		bottom: 12px;
+		right: 12px;
+	}
+	
+	.theme-btn {
+		bottom: 12px;
+		left: 12px;
+	}
+	
+	.nav-btn.back {
+		bottom: 12px;
+		left: 12px;
+	}
+}
