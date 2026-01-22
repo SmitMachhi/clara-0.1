@@ -1,3 +1,5 @@
+import { TIME } from './constants.js';
+
 /**
  * Format date to display format: "06:30:45 12th October, 2026"
  */
@@ -6,13 +8,13 @@ export function formatDateTime(date: Date): string {
 	const minutes = date.getMinutes().toString().padStart(2, '0');
 	const seconds = date.getSeconds().toString().padStart(2, '0');
 	const time = `${hours}:${minutes}:${seconds}`;
-	
+
 	const day = date.getDate();
 	const suffix = getOrdinalSuffix(day);
-	
+
 	const month = date.toLocaleDateString('en-US', { month: 'long' });
 	const year = date.getFullYear();
-	
+
 	return `${time} ${day}${suffix} ${month}, ${year}`;
 }
 
@@ -38,9 +40,13 @@ export function formatDateISO(date: Date): string {
 
 /**
  * Check if current time is past 2pm (14:00)
+ * Can be disabled for development by setting PRIVATE_DISABLE_TIME_CUTOFF=true
  */
 export function isPastCutoff(date: Date = new Date()): boolean {
-	return date.getHours() >= 14;
+	if (import.meta.env.PRIVATE_DISABLE_TIME_CUTOFF === 'true') {
+		return false;
+	}
+	return date.getHours() >= TIME.CUTOFF_HOUR;
 }
 
 /**

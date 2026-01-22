@@ -99,6 +99,14 @@
 	
 	/* No page shadow - Notion is flat */
 	--page-shadow: none;
+
+	/* Shadow tokens - eliminate duplication */
+	--shadow-sm: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px;
+	--shadow-sm-dark: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 3px 6px;
+	--shadow-md: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 5px 10px, rgba(15, 15, 15, 0.2) 0px 15px 40px;
+	--shadow-md-dark: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.3) 0px 5px 10px, rgba(0, 0, 0, 0.5) 0px 15px 40px;
+	--shadow-lg: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px, rgba(15, 15, 15, 0.2) 0px 9px 24px;
+	--shadow-lg-dark: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 3px 6px, rgba(0, 0, 0, 0.4) 0px 9px 24px;
 }
 
 /* Dark mode */
@@ -728,11 +736,11 @@ button:disabled {
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	box-shadow: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px;
+	box-shadow: var(--shadow-sm);
 }
 
 .dark .progress-pill {
-	box-shadow: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 3px 6px;
+	box-shadow: var(--shadow-sm-dark);
 }
 
 .progress-count {
@@ -759,13 +767,13 @@ button:disabled {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	box-shadow: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px;
+	box-shadow: var(--shadow-sm);
 	transition: all 0.1s;
 	z-index: 50;
 }
 
 .dark .nav-btn {
-	box-shadow: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 3px 6px;
+	box-shadow: var(--shadow-sm-dark);
 }
 
 .nav-btn:hover {
@@ -900,9 +908,7 @@ button:disabled {
 	max-height: calc(100vh - 48px);
 	background: var(--surface);
 	border-radius: 12px;
-	box-shadow: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, 
-	            rgba(15, 15, 15, 0.1) 0px 5px 10px, 
-	            rgba(15, 15, 15, 0.2) 0px 15px 40px;
+	box-shadow: var(--shadow-md);
 	display: flex;
 	flex-direction: column;
 	animation: modalSlideUp 200ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -911,9 +917,7 @@ button:disabled {
 
 .dark .settings-modal {
 	background: #2f2f2f;
-	box-shadow: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, 
-	            rgba(0, 0, 0, 0.3) 0px 5px 10px, 
-	            rgba(0, 0, 0, 0.5) 0px 15px 40px;
+	box-shadow: var(--shadow-md-dark);
 }
 
 @keyframes modalSlideUp {
@@ -1246,9 +1250,7 @@ button.recent-item:hover {
 	max-width: 280px;
 	background: var(--surface);
 	border-radius: 6px;
-	box-shadow: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, 
-	            rgba(15, 15, 15, 0.1) 0px 3px 6px, 
-	            rgba(15, 15, 15, 0.2) 0px 9px 24px;
+	box-shadow: var(--shadow-lg);
 	z-index: 100;
 	padding: 4px;
 	animation: dropdownFadeIn 0.15s ease;
@@ -1256,9 +1258,7 @@ button.recent-item:hover {
 
 .dark .location-dropdown-menu {
 	background: #2f2f2f;
-	box-shadow: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, 
-	            rgba(0, 0, 0, 0.2) 0px 3px 6px, 
-	            rgba(0, 0, 0, 0.4) 0px 9px 24px;
+	box-shadow: var(--shadow-lg-dark);
 }
 
 @keyframes dropdownFadeIn {

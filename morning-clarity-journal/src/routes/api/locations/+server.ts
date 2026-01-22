@@ -1,36 +1,45 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getLocations, addLocation, locationNameExists } from '$lib/db.js';
+import { validateCoordinates, validateLocationName } from '$lib/validation.js';
+import { parseJsonBody, successResponse, errorResponse } from '$lib/api-helpers.js';
 
 export const GET: RequestHandler = async () => {
 	const locations = getLocations();
-	return json(locations);
+	return successResponse(locations);
 };
 
 export const POST: RequestHandler = async ({ request }) => {
-	const { name, lat, lng, address } = await request.json();
-	
-	if (!name || typeof name !== 'string' || name.trim().length === 0) {
-		return json({ success: false, error: 'Invalid location name' }, { status: 400 });
+	const body = await parseJsonBody<{ name: string; lat: number; lng: number; address?: string | null }>(request);
+	if (body.error) {
+		return errorResponse(body.error);
 	}
-	
+
+	const { name, lat, lng, address } = body.data!;
+
+	const nameValidation = validateLocationName(name);
+	if (!nameValidation.valid) {
+		return errorResponse(nameValidation.error!);
+	}
+
 	if (typeof lat !== 'number' || typeof lng !== 'number') {
-		return json({ success: false, error: 'Latitude and longitude are required' }, { status: 400 });
+		return errorResponse('Latitude and longitude are required');
 	}
-	
-	if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-		return json({ success: false, error: 'Invalid coordinates' }, { status: 400 });
+
+	const coordValidation = validateCoordinates(lat, lng);
+	if (!coordValidation.valid) {
+		return errorResponse(coordValidation.error!);
 	}
-	
+
 	// Check for duplicate location names (case-insensitive)
 	if (locationNameExists(name)) {
-		return json({ success: false, error: 'A location with this name already exists' }, { status: 400 });
+		return errorResponse('A location with this name already exists');
 	}
-	
+
 	try {
 		const id = addLocation(name.trim(), lat, lng, address);
-		return json({ success: true, id, name: name.trim(), lat, lng, address });
+		return successResponse({ id, name: name.trim(), lat, lng, address });
 	} catch (error) {
-		return json({ success: false, error: 'Failed to add location' }, { status: 400 });
+		return errorResponse('Failed to add location');
 	}
 };

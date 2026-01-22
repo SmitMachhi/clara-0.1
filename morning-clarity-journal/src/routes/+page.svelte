@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	
+	import { TIME } from '$lib/constants.js';
+
 	let password = $state('');
 	let error = $state('');
 	let isShaking = $state(false);
@@ -27,7 +28,7 @@
 				isShaking = true;
 				setTimeout(() => {
 					isShaking = false;
-				}, 400);
+				}, TIME.SHAKE_DURATION_MS);
 				password = '';
 			}
 		} catch (err) {

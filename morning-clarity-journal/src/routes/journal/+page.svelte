@@ -2,9 +2,11 @@
 	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { slide } from 'svelte/transition';
-	import { journalTemplate, getEmptyJournalData } from '$lib/template.js';
-	import { formatDateTime, formatDateISO, isPastCutoff, extractTimeFromTimestamp, isDateInPast, getYearDates, isToday, getDateTimeParts } from '$lib/utils.js';
-	import type { Location, Entry } from '$lib/db.js';
+import { journalTemplate, getEmptyJournalData } from '$lib/template.js';
+import { formatDateTime, formatDateISO, isPastCutoff, extractTimeFromTimestamp, isDateInPast, getYearDates, isToday, getDateTimeParts } from '$lib/utils.js';
+import type { Location, Entry } from '$lib/db.js';
+import { GPS, TIME, DISPLAY } from '$lib/constants.js';
+import { findMatchingPreset, handleGeolocationError, formatCoordinate } from '$lib/location-utils.js';
 	
 	let formData = $state(getEmptyJournalData());
 	let locations = $state<Location[]>([]);
@@ -166,34 +168,7 @@
 			isSaving = false;
 		}
 	}
-	
-	// Helper function to calculate distance between two coordinates using Haversine formula
-	// Returns distance in meters
-	function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-		const R = 6371000; // Earth's radius in meters
-		const dLat = (lat2 - lat1) * Math.PI / 180;
-		const dLng = (lng2 - lng1) * Math.PI / 180;
-		const a = 
-			Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-			Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-			Math.sin(dLng / 2) * Math.sin(dLng / 2);
-		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-		return R * c;
-	}
-	
-	// Helper function to check if coordinates match a preset location
-	// Tolerance: 15 meters (reasonable for GPS accuracy)
-	function findMatchingPreset(lat: number, lng: number): number | null {
-		const toleranceMeters = 15; // 15 meters tolerance
-		for (const loc of locations) {
-			const distance = calculateDistance(lat, lng, loc.lat, loc.lng);
-			if (distance <= toleranceMeters) {
-				return loc.id;
-			}
-		}
-		return null;
-	}
-	
+
 	function captureCurrentLocation() {
 		if (!navigator.geolocation) {
 			gpsError = 'Geolocation not supported';
@@ -207,9 +182,8 @@
 			(position) => {
 				const lat = position.coords.latitude;
 				const lng = position.coords.longitude;
-				
-				// Check if captured coordinates match any preset location
-				const matchingPresetId = findMatchingPreset(lat, lng);
+
+				const matchingPresetId = findMatchingPreset(lat, lng, locations);
 				
 				if (matchingPresetId !== null) {
 					// Match found - use the preset instead of raw coordinates
@@ -227,21 +201,9 @@
 			},
 			(error) => {
 				isCapturingGps = false;
-				switch (error.code) {
-					case error.PERMISSION_DENIED:
-						gpsError = 'Permission denied';
-						break;
-					case error.POSITION_UNAVAILABLE:
-						gpsError = 'Location unavailable';
-						break;
-					case error.TIMEOUT:
-						gpsError = 'Request timed out';
-						break;
-					default:
-						gpsError = 'Failed to get location';
-				}
+				gpsError = handleGeolocationError(error);
 			},
-			{ enableHighAccuracy: true, timeout: 10000 }
+			GPS.DEFAULT_OPTIONS
 		);
 	}
 	
@@ -313,7 +275,7 @@
 				entry: entries.find(e => e.date === d)
 			}))
 			.reverse()
-			.slice(0, 30);
+			.slice(0, DISPLAY.RECENT_ENTRIES_LIMIT);
 	}
 	
 	$effect(() => {
@@ -374,21 +336,9 @@
 			},
 			(error) => {
 				isGettingLocation = false;
-				switch (error.code) {
-					case error.PERMISSION_DENIED:
-						locationError = 'Location permission denied';
-						break;
-					case error.POSITION_UNAVAILABLE:
-						locationError = 'Location unavailable';
-						break;
-					case error.TIMEOUT:
-						locationError = 'Request timed out';
-						break;
-					default:
-						locationError = 'Failed to get location';
-				}
+				locationError = handleGeolocationError(error);
 			},
-			{ enableHighAccuracy: true, timeout: 10000 }
+			GPS.DEFAULT_OPTIONS
 		);
 	}
 	
@@ -465,24 +415,24 @@
 		}
 	}
 	
-	async function createBackup() {
+		async function createBackup() {
 		isCreatingBackup = true;
 		backupError = '';
 		backupSuccess = '';
-		
+
 		try {
 			const res = await fetch('/api/backup', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' }
 			});
-			
+
 			const data = await res.json();
 			if (data.success) {
 				backupSuccess = 'Backup created successfully';
 				// Clear success message after 3 seconds
 				setTimeout(() => {
 					backupSuccess = '';
-				}, 3000);
+				}, TIME.SUCCESS_MESSAGE_DURATION_MS);
 			} else {
 				backupError = data.error || 'Failed to create backup';
 			}
@@ -530,7 +480,7 @@
 						<div class="page-actions">
 							{#if capturedLat !== null && capturedLng !== null}
 								<div class="captured-location">
-									<span class="captured-label">📍 {capturedLat.toFixed(4)}, {capturedLng.toFixed(4)}</span>
+									<span class="captured-label">📍 {formatCoordinate(capturedLat)}, {formatCoordinate(capturedLng)}</span>
 									<button class="captured-clear" onclick={clearCapturedLocation} aria-label="Clear location">×</button>
 								</div>
 							{:else}
@@ -645,7 +595,7 @@
 								
 								<!-- Toggle content with slide animation -->
 								{#if expandedSections[question.id]}
-									<div class="toggle-content" transition:slide={{ duration: 150 }}>
+									<div class="toggle-content" transition:slide={{ duration: TIME.ANIMATION_DURATION_MS }}>
 										{#each question.fields as field}
 											<div class="field-block">
 												<!-- Field controls (appear on hover) -->
@@ -871,7 +821,7 @@
 										{#if loc.address}
 											{loc.address}
 										{:else}
-											{loc.lat.toFixed(4)}, {loc.lng.toFixed(4)}
+											{formatCoordinate(loc.lat)}, {formatCoordinate(loc.lng)}
 										{/if}
 									</span>
 								</div>

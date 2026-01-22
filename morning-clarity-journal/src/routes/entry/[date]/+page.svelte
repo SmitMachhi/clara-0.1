@@ -2,8 +2,10 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { slide } from 'svelte/transition';
-	import { journalTemplate, getCurrentFieldIds } from '$lib/template.js';
-	import type { EntryWithData } from '$lib/db.js';
+import { journalTemplate, getCurrentFieldIds } from '$lib/template.js';
+import type { EntryWithData } from '$lib/db.js';
+import { DISPLAY } from '$lib/constants.js';
+import { formatCoordinate } from '$lib/location-utils.js';
 	
 	let entry = $state<EntryWithData | null>(null);
 	let loading = $state(true);
@@ -139,7 +141,7 @@
 						{#if entry.location_name}
 							<div class="page-location">{entry.location_name} 📍</div>
 						{:else if entry.captured_lat !== null && entry.captured_lng !== null}
-							<div class="page-location">{entry.captured_lat.toFixed(4)}, {entry.captured_lng.toFixed(4)} 📍</div>
+							<div class="page-location">{formatCoordinate(entry.captured_lat)}, {formatCoordinate(entry.captured_lng)} 📍</div>
 						{/if}
 					</div>
 					

@@ -3,14 +3,14 @@ import type { RequestHandler } from './$types';
 import { createBackup, getBackups } from '$lib/db.js';
 import { readFileSync } from 'fs';
 import path from 'path';
+import { successResponse, errorResponse, notFoundResponse } from '$lib/api-helpers.js';
 
 export const GET: RequestHandler = async ({ url }) => {
 	const action = url.searchParams.get('action');
-	
+
 	if (action === 'list') {
 		const backups = getBackups();
-		return json({ 
-			success: true, 
+		return successResponse({
 			backups: backups.map(b => ({
 				filename: b.filename,
 				size: b.size,
@@ -18,16 +18,16 @@ export const GET: RequestHandler = async ({ url }) => {
 			}))
 		});
 	}
-	
+
 	if (action === 'download' && url.searchParams.get('filename')) {
 		const filename = url.searchParams.get('filename');
 		const backups = getBackups();
 		const backup = backups.find(b => b.filename === filename);
-		
+
 		if (!backup) {
-			return json({ success: false, error: 'Backup not found' }, { status: 404 });
+			return notFoundResponse('Backup not found');
 		}
-		
+
 		try {
 			const fileBuffer = readFileSync(backup.path);
 			return new Response(fileBuffer, {
@@ -38,11 +38,11 @@ export const GET: RequestHandler = async ({ url }) => {
 				}
 			});
 		} catch (error) {
-			return json({ success: false, error: 'Failed to read backup file' }, { status: 500 });
+			return errorResponse('Failed to read backup file', 500);
 		}
 	}
-	
-	return json({ success: false, error: 'Invalid action' }, { status: 400 });
+
+	return errorResponse('Invalid action');
 };
 
 export const POST: RequestHandler = async () => {
@@ -50,9 +50,8 @@ export const POST: RequestHandler = async () => {
 		const backupPath = createBackup();
 		const backups = getBackups();
 		const latest = backups[0];
-		
-		return json({ 
-			success: true, 
+
+		return successResponse({
 			message: 'Backup created successfully',
 			filename: path.basename(backupPath),
 			size: latest?.size || 0,
@@ -60,6 +59,6 @@ export const POST: RequestHandler = async () => {
 		});
 	} catch (error) {
 		console.error('Backup error:', error);
-		return json({ success: false, error: 'Failed to create backup' }, { status: 500 });
+		return errorResponse('Failed to create backup', 500);
 	}
 };
