@@ -2,24 +2,22 @@
 	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { slide } from 'svelte/transition';
-import { journalTemplate, getEmptyJournalData } from '$lib/template.js';
-import { formatDateTime, formatDateISO, isPastCutoff, extractTimeFromTimestamp, isDateInPast, getYearDates, isToday, getDateTimeParts } from '$lib/utils.js';
-import type { Location, Entry } from '$lib/db.js';
-import { GPS, TIME, DISPLAY } from '$lib/constants.js';
-import { findMatchingPreset, handleGeolocationError, formatCoordinate } from '$lib/location-utils.js';
-import { calculateStats, getRecentEntries } from '$lib/stats.js';
-import Icon from '$lib/components/Icons.svelte';
-import Spinner from '$lib/components/Spinner.svelte';
-import Modal from '$lib/components/Modal.svelte';
-	
+	import { journalTemplate, getEmptyJournalData } from '$lib/template.js';
+	import { formatDateTime, formatDateISO, isPastCutoff, extractTimeFromTimestamp, isDateInPast, getYearDates, isToday, getDateTimeParts } from '$lib/utils.js';
+	import type { Location, Entry } from '$lib/db.js';
+	import { GPS, TIME, DISPLAY } from '$lib/constants.js';
+	import { handleGeolocationError, formatCoordinate } from '$lib/location-utils.js';
+	import { calculateStats, getRecentEntries } from '$lib/stats.js';
+	import { useGps } from '$lib/composables/useGps.js';
+	import Icon from '$lib/components/Icons.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
+	import Modal from '$lib/components/Modal.svelte';
+	import Dropdown from '$lib/components/Dropdown.svelte';
+
 	let formData = $state(getEmptyJournalData());
 	let locations = $state<Location[]>([]);
 	let selectedLocationId = $state<number | null>(null);
-	let capturedLat = $state<number | null>(null);
-	let capturedLng = $state<number | null>(null);
-	let isCapturingGps = $state(false);
-	let gpsError = $state('');
-	let locationDropdownOpen = $state(false);
+	const gps = useGps(locations);
 	let entries = $state<Entry[]>([]);
 	let entryDates = $state<string[]>([]);
 	let isSaving = $state(false);
@@ -468,60 +466,21 @@ import Modal from '$lib/components/Modal.svelte';
 									<span class="captured-label">📍 {formatCoordinate(capturedLat)}, {formatCoordinate(capturedLng)}</span>
 									<button class="captured-clear" onclick={clearCapturedLocation} aria-label="Clear location">×</button>
 								</div>
-							{:else}
-								<!-- Custom Notion-style dropdown -->
-								<div class="location-dropdown" class:open={locationDropdownOpen}>
-									<button 
-										class="location-dropdown-trigger"
-										onclick={() => locationDropdownOpen = !locationDropdownOpen}
-										type="button"
-									>
-										{#if selectedLocationId}
-											{@const selected = locations.find(l => l.id === selectedLocationId)}
-											<span class="location-dropdown-value">{selected?.name || ''}</span>
-										{:else}
-											<span class="location-dropdown-placeholder">Add location</span>
-										{/if}
-										<Icon name="chevron" size={10} />
-									</button>
-									
-									{#if locationDropdownOpen}
-										<!-- svelte-ignore a11y_no_static_element_interactions -->
-										<!-- svelte-ignore a11y_click_events_have_key_events -->
-										<div class="location-dropdown-overlay" onclick={() => locationDropdownOpen = false}></div>
-										<div class="location-dropdown-menu">
-											{#if selectedLocationId}
-												<button 
-													class="location-dropdown-item clear"
-													onclick={() => { selectedLocationId = null; locationDropdownOpen = false; }}
-													type="button"
-												>
-													Clear selection
-												</button>
-											{/if}
-											{#each locations as loc}
-												<button 
-													class="location-dropdown-item"
-													class:selected={selectedLocationId === loc.id}
-													onclick={() => { selectedLocationId = loc.id; capturedLat = null; capturedLng = null; locationDropdownOpen = false; }}
-													type="button"
-												>
-													{loc.name}
-													{#if selectedLocationId === loc.id}
-														<Icon name="check" size={14} />
-													{/if}
-												</button>
-											{/each}
-											{#if locations.length === 0}
-												<div class="location-dropdown-empty">
-													No locations saved.<br/>
-													<span>Add them in Settings</span>
-												</div>
-											{/if}
-										</div>
-									{/if}
-								</div>
-							{/if}
+						{:else}
+							<Dropdown
+								items={locations.map(loc => ({ label: loc.name, value: loc.id.toString() }))}
+								placeholder="Add location"
+								selectedValue={selectedLocationId?.toString() || null}
+								onSelect={(value) => {
+									selectedLocationId = parseInt(value);
+									capturedLat = null;
+									capturedLng = null;
+								}}
+								onClear={() => {
+									selectedLocationId = null;
+								}}
+							/>
+						{/if}
 							
 							<button 
 								class="gps-capture-btn"

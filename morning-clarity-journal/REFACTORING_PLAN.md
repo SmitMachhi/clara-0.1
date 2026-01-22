@@ -1257,6 +1257,9 @@ Created `src/lib/components/Modal.svelte` with overlay, header, and close button
 
 **Testing**: Verify dropdown opens, closes, selects, and clears identically
 
+**✅ COMPLETED (Phase 3.4)**:
+Created `src/lib/components/Dropdown.svelte` with items array (label, value, selected, disabled), placeholder, selectedValue, onSelect callback, and optional onClear callback. Component manages own `open` state using $state. Fixed chevron rotation by wrapping Icon in span with inline transform style (rotate 180deg when open, 0deg when closed) and 0.1s transition. Dropdown menu uses absolute positioning with var(--shadow-lg), z-index 100, and 0.15s dropdownFadeIn animation. Supports clear selection button, disabled items, selected state with check icon, and empty state. Updated src/routes/journal/+page.svelte: added Dropdown import, replaced entire location dropdown HTML (lines 471-523) with `<Dropdown items={locations.map(loc => ({ label: loc.name, value: loc.id.toString() }))} placeholder="Add location" selectedValue={selectedLocationId?.toString() || null} onSelect={(value) => { selectedLocationId = parseInt(value); capturedLat = null; capturedLng = null; }} onClear={() => { selectedLocationId = null; }} />`, removed unused `locationDropdownOpen` state variable. Dropdown behavior (open/close, select, clear, empty state) remains identical. Build passes. No functional changes, only extracted duplicate dropdown HTML/CSS into reusable component.
+
 ---
 
 ### Phase 4: Clean Up Large Components
