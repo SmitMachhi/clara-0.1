@@ -22,8 +22,15 @@
 			const res = await fetch(`/api/entries/${date}`);
 			if (res.ok) {
 				entry = await res.json();
-				// Auto-expand all questions that have content
+				// Debug: log entry to see location data
 				if (entry) {
+					console.log('Entry loaded:', { 
+						location_id: entry.location_id, 
+						location_name: entry.location_name,
+						captured_lat: entry.captured_lat,
+						captured_lng: entry.captured_lng
+					});
+					// Auto-expand all questions that have content
 					const questionsWithContent = new Set<string>();
 					for (const question of journalTemplate) {
 						for (const field of question.fields) {
@@ -130,9 +137,9 @@
 							<span class="meta-date">{tp.rest}</span>
 						</div>
 						{#if entry.location_name}
-							<div class="page-location">{entry.location_name}</div>
+							<div class="page-location">{entry.location_name} 📍</div>
 						{:else if entry.captured_lat !== null && entry.captured_lng !== null}
-							<div class="page-location">📍 {entry.captured_lat.toFixed(4)}, {entry.captured_lng.toFixed(4)}</div>
+							<div class="page-location">{entry.captured_lat.toFixed(4)}, {entry.captured_lng.toFixed(4)} 📍</div>
 						{/if}
 					</div>
 					

@@ -51,7 +51,14 @@
 	let isGettingLocation = $state(false);
 	let locationError = $state('');
 	let isAddingLocation = $state(false);
+	let isDeletingLocation = $state<number | null>(null); // Track which location is being deleted
 	let showManualEntry = $state(false);
+	let isLoadingData = $state(true); // Track initial data loading
+	
+	// Backup state
+	let isCreatingBackup = $state(false);
+	let backupError = $state('');
+	let backupSuccess = $state('');
 	
 	// Theme state
 	let isDarkMode = $state(false);
@@ -89,7 +96,7 @@
 		}, 1000);
 		
 		// Load data
-		Promise.all([loadLocations(), loadEntries()]).then(() => {
+		loadAllData().then(() => {
 			hasEntryToday = entryDates.includes(today);
 		});
 		
@@ -117,6 +124,15 @@
 			entryDates = data.entryDates;
 		} catch (err) {
 			console.error('Failed to load entries', err);
+		}
+	}
+	
+	async function loadAllData() {
+		isLoadingData = true;
+		try {
+			await Promise.all([loadLocations(), loadEntries()]);
+		} finally {
+			isLoadingData = false;
 		}
 	}
 	
@@ -430,6 +446,9 @@
 	}
 	
 	async function deleteLocationPreset(id: number) {
+		if (isDeletingLocation !== null) return; // Prevent multiple simultaneous deletions
+		
+		isDeletingLocation = id;
 		try {
 			const res = await fetch(`/api/locations/${id}`, { method: 'DELETE' });
 			if (res.ok) {
@@ -441,6 +460,36 @@
 			}
 		} catch (err) {
 			console.error('Failed to delete location', err);
+		} finally {
+			isDeletingLocation = null;
+		}
+	}
+	
+	async function createBackup() {
+		isCreatingBackup = true;
+		backupError = '';
+		backupSuccess = '';
+		
+		try {
+			const res = await fetch('/api/backup', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' }
+			});
+			
+			const data = await res.json();
+			if (data.success) {
+				backupSuccess = 'Backup created successfully';
+				// Clear success message after 3 seconds
+				setTimeout(() => {
+					backupSuccess = '';
+				}, 3000);
+			} else {
+				backupError = data.error || 'Failed to create backup';
+			}
+		} catch (err) {
+			backupError = 'Failed to create backup';
+		} finally {
+			isCreatingBackup = false;
 		}
 	}
 </script>
@@ -450,11 +499,15 @@
 	<div class="main-area">
 		<!-- Scrollable content -->
 		<main class="content">
-			{#if isPastTime && !hasEntryToday}
+			{#if isLoadingData}
 				<div class="message-container">
-					<p class="message-title">It's past 2pm</p>
+					<div class="spinner"></div>
+				</div>
+			{:else if isPastTime && !hasEntryToday}
+				<div class="message-container">
+					<p class="message-title">It's past 14:00</p>
 					<p class="message-text">
-						Morning journaling closes at 2:00 PM.<br/>
+						Morning journaling closes at 14:00.<br/>
 						Come back tomorrow.
 					</p>
 				</div>
@@ -648,7 +701,7 @@
 								{:else if isComplete()}
 									Begin the Day
 								{:else}
-									Complete all prompts to save
+									Save entry
 								{/if}
 							</button>
 						</div>
@@ -825,12 +878,17 @@
 								<button 
 									class="location-delete-btn"
 									onclick={() => deleteLocationPreset(loc.id)}
+									disabled={isDeletingLocation === loc.id}
 									aria-label="Delete {loc.name}"
 								>
-									<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<line x1="18" y1="6" x2="6" y2="18"></line>
-										<line x1="6" y1="6" x2="18" y2="18"></line>
-									</svg>
+									{#if isDeletingLocation === loc.id}
+										<span class="gps-spinner-small"></span>
+									{:else}
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<line x1="18" y1="6" x2="6" y2="18"></line>
+											<line x1="6" y1="6" x2="18" y2="18"></line>
+										</svg>
+									{/if}
 								</button>
 							</div>
 						{/each}
@@ -913,6 +971,38 @@
 						</button>
 					</div>
 				{/if}
+				
+				<!-- Database Backup Section -->
+				<h3 class="settings-section-title" style="margin-top: 2rem;">Database Backup</h3>
+				<div class="backup-section">
+					<p class="backup-description">
+						Create a backup of your journal database. Backups are stored locally in the backups folder.
+					</p>
+					<button 
+						type="button"
+						class="backup-btn"
+						onclick={createBackup}
+						disabled={isCreatingBackup}
+					>
+						{#if isCreatingBackup}
+							<span class="gps-spinner-small"></span>
+							<span>Creating backup...</span>
+						{:else}
+							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+								<polyline points="7 10 12 15 17 10"></polyline>
+								<line x1="12" y1="15" x2="12" y2="3"></line>
+							</svg>
+							<span>Create Backup</span>
+						{/if}
+					</button>
+					{#if backupError}
+						<p class="location-error">{backupError}</p>
+					{/if}
+					{#if backupSuccess}
+						<p class="backup-success">{backupSuccess}</p>
+					{/if}
+				</div>
 			</div>
 		</div>
 	</div>

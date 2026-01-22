@@ -1,19 +1,36 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { saveEntry, hasEntryForDate, type JournalData } from '$lib/db.js';
+import { saveEntry, updateEntry, hasEntryForDate, getLocations, locationNameExists, addLocation, type JournalData } from '$lib/db.js';
 
 export const POST: RequestHandler = async () => {
-	// Create a test entry for yesterday
-	const yesterday = new Date();
-	yesterday.setDate(yesterday.getDate() - 1);
-	const date = yesterday.toISOString().split('T')[0];
+	// Create a test entry for January 21, 2026
+	const date = '2026-01-21';
+	const entryDate = new Date('2026-01-21T09:03:00');
 	
-	// Check if entry already exists
-	if (hasEntryForDate(date)) {
-		return json({ success: false, error: 'Entry already exists for ' + date }, { status: 400 });
+	// Get or create "Home" location
+	let homeLocationId: number | null = null;
+	const locations = getLocations();
+	const homeLocation = locations.find(loc => loc.name.toLowerCase() === 'home');
+	
+	if (homeLocation) {
+		homeLocationId = homeLocation.id;
+	} else {
+		// Create "Home" location if it doesn't exist (using default coordinates)
+		if (!locationNameExists('Home')) {
+			homeLocationId = addLocation('Home', 37.7749, -122.4194, null); // Default SF coordinates, can be updated
+		} else {
+			// If it exists but wasn't found (case sensitivity issue), find it
+			const allLocations = getLocations();
+			const found = allLocations.find(loc => loc.name.toLowerCase() === 'home');
+			if (found) {
+				homeLocationId = found.id;
+			}
+		}
 	}
 	
-	const timestamp = `${yesterday.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} · ${yesterday.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${yesterday.getFullYear()}`;
+	const hours = entryDate.getHours().toString().padStart(2, '0');
+	const minutes = entryDate.getMinutes().toString().padStart(2, '0');
+	const timestamp = `${hours}:${minutes} ${entryDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${entryDate.getFullYear()}`;
 	
 	const testData: JournalData = {
 		whoAmIDoingThisFor: 'For my future self. For the person I want to become - someone who shows up consistently, even when it\'s hard. For my family who believes in me.',
@@ -52,9 +69,21 @@ export const POST: RequestHandler = async () => {
 	};
 	
 	try {
-		const id = saveEntry(date, timestamp, null, testData);
-		return json({ success: true, id, date });
+		if (hasEntryForDate(date)) {
+			// Update existing entry
+			const updated = updateEntry(date, timestamp, homeLocationId, testData);
+			if (updated) {
+				return json({ success: true, message: 'Entry updated', date, locationId: homeLocationId });
+			} else {
+				return json({ success: false, error: 'Failed to update entry' }, { status: 500 });
+			}
+		} else {
+			// Create new entry
+			const id = saveEntry(date, timestamp, homeLocationId, testData);
+			return json({ success: true, id, date, locationId: homeLocationId });
+		}
 	} catch (error) {
-		return json({ success: false, error: 'Failed to create test entry' }, { status: 500 });
+		console.error('Seed test error:', error);
+		return json({ success: false, error: 'Failed to create/update test entry' }, { status: 500 });
 	}
 };

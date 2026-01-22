@@ -182,6 +182,30 @@ export function saveEntry(
 }
 
 /**
+ * Update an existing journal entry
+ */
+export function updateEntry(
+	date: string, 
+	timestamp: string, 
+	locationId: number | null, 
+	data: JournalData,
+	capturedLat?: number | null,
+	capturedLng?: number | null
+): boolean {
+	const database = getDb();
+	const key = getEncryptionKey();
+	const encryptedData = encryptJSON(data, key);
+	
+	const result = database.prepare(`
+		UPDATE entries 
+		SET timestamp = ?, location_id = ?, captured_lat = ?, captured_lng = ?, encrypted_data = ?
+		WHERE date = ?
+	`).run(timestamp, locationId, capturedLat ?? null, capturedLng ?? null, encryptedData, date);
+	
+	return result.changes > 0;
+}
+
+/**
  * Get all entries (without decrypted data)
  */
 export function getAllEntries(): Entry[] {
@@ -292,4 +316,56 @@ export function locationNameExists(name: string): boolean {
 	const database = getDb();
 	const row = database.prepare('SELECT 1 FROM locations WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))').get(name);
 	return !!row;
+}
+
+/**
+ * Create a backup of the database
+ * Returns the path to the backup file
+ */
+export function createBackup(): string {
+	const database = getDb();
+	
+	// Checkpoint WAL to ensure all data is in the main database file
+	database.pragma('wal_checkpoint(TRUNCATE)');
+	
+	// Ensure backup directory exists
+	const backupDir = path.join(DATA_DIR, 'backups');
+	if (!fs.existsSync(backupDir)) {
+		fs.mkdirSync(backupDir, { recursive: true });
+	}
+	
+	// Create backup filename with timestamp
+	const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5); // Format: 2024-01-15T10-30-45
+	const backupPath = path.join(backupDir, `journal-backup-${timestamp}.db`);
+	
+	// Copy the database file
+	fs.copyFileSync(DB_PATH, backupPath);
+	
+	return backupPath;
+}
+
+/**
+ * Get list of all backup files
+ */
+export function getBackups(): Array<{ filename: string; path: string; size: number; created: Date }> {
+	const backupDir = path.join(DATA_DIR, 'backups');
+	if (!fs.existsSync(backupDir)) {
+		return [];
+	}
+	
+	const files = fs.readdirSync(backupDir)
+		.filter(file => file.startsWith('journal-backup-') && file.endsWith('.db'))
+		.map(file => {
+			const filePath = path.join(backupDir, file);
+			const stats = fs.statSync(filePath);
+			return {
+				filename: file,
+				path: filePath,
+				size: stats.size,
+				created: stats.birthtime
+			};
+		})
+		.sort((a, b) => b.created.getTime() - a.created.getTime()); // Most recent first
+	
+	return files;
 }
