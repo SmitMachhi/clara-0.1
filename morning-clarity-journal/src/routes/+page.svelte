@@ -42,7 +42,7 @@
 	<div class="w-full max-w-[320px] animate-fade-in">
 		<!-- Minimal title - just the name, honest -->
 		<h1 class="text-center text-xl text-[var(--text)] mb-[var(--space-2xl)] font-serif">
-			Morning Clarity
+			clara
 		</h1>
 		
 		<form onsubmit={handleSubmit}>

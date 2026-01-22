@@ -48,7 +48,8 @@
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
 	<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@400;500;600&display=swap" rel="stylesheet">
-	<title>Morning Clarity</title>
+	<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+	<title>clara</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 </svelte:head>
 
