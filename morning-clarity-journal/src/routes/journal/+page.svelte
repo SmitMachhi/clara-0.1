@@ -151,14 +151,27 @@
 		}
 	}
 	
+	// Helper function to calculate distance between two coordinates using Haversine formula
+	// Returns distance in meters
+	function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+		const R = 6371000; // Earth's radius in meters
+		const dLat = (lat2 - lat1) * Math.PI / 180;
+		const dLng = (lng2 - lng1) * Math.PI / 180;
+		const a = 
+			Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+			Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+			Math.sin(dLng / 2) * Math.sin(dLng / 2);
+		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+		return R * c;
+	}
+	
 	// Helper function to check if coordinates match a preset location
-	// Tolerance: 0.0001 degrees ≈ 11 meters (reasonable for GPS accuracy)
+	// Tolerance: 15 meters (reasonable for GPS accuracy)
 	function findMatchingPreset(lat: number, lng: number): number | null {
-		const tolerance = 0.0001; // ~11 meters
+		const toleranceMeters = 15; // 15 meters tolerance
 		for (const loc of locations) {
-			const latDiff = Math.abs(loc.lat - lat);
-			const lngDiff = Math.abs(loc.lng - lng);
-			if (latDiff <= tolerance && lngDiff <= tolerance) {
+			const distance = calculateDistance(lat, lng, loc.lat, loc.lng);
+			if (distance <= toleranceMeters) {
 				return loc.id;
 			}
 		}

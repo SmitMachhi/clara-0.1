@@ -284,3 +284,12 @@ export function getLocationById(id: number): Location | null {
 	const database = getDb();
 	return database.prepare('SELECT id, name, lat, lng, address FROM locations WHERE id = ?').get(id) as Location | null;
 }
+
+/**
+ * Check if a location with the given name already exists
+ */
+export function locationNameExists(name: string): boolean {
+	const database = getDb();
+	const row = database.prepare('SELECT 1 FROM locations WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))').get(name);
+	return !!row;
+}

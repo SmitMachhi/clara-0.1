@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getLocations, addLocation } from '$lib/db.js';
+import { getLocations, addLocation, locationNameExists } from '$lib/db.js';
 
 export const GET: RequestHandler = async () => {
 	const locations = getLocations();
@@ -20,6 +20,11 @@ export const POST: RequestHandler = async ({ request }) => {
 	
 	if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
 		return json({ success: false, error: 'Invalid coordinates' }, { status: 400 });
+	}
+	
+	// Check for duplicate location names (case-insensitive)
+	if (locationNameExists(name)) {
+		return json({ success: false, error: 'A location with this name already exists' }, { status: 400 });
 	}
 	
 	try {

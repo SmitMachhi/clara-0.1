@@ -131,6 +131,8 @@
 						</div>
 						{#if entry.location_name}
 							<div class="page-location">{entry.location_name}</div>
+						{:else if entry.captured_lat !== null && entry.captured_lng !== null}
+							<div class="page-location">📍 {entry.captured_lat.toFixed(4)}, {entry.captured_lng.toFixed(4)}</div>
 						{/if}
 					</div>
 					
