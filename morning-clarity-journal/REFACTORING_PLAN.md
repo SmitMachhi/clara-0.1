@@ -80,7 +80,7 @@ morning-clarity-journal/
 
 ### Development Mode Features
 
-- **Time Cutoff Disable**: Set `PRIVATE_DISABLE_TIME_CUTOFF=true` in `.env` to allow journal access at any time during development
+- **Time Cutoff Disable**: Set `VITE_DISABLE_TIME_CUTOFF=true` in `.env` to allow journal access at any time during development
 - See `.env.example` for all available environment variables
 
 ---
@@ -615,6 +615,9 @@ function isDateInPast(dateStr: string): boolean {
 
 **Testing**: Verify statistics display correctly
 
+**✅ COMPLETED (Phase 2.4)**:
+Created `src/lib/stats.ts` with three functions: calculateStats (computes completed count and total for past dates), getRecentEntries (returns recent entries with status, limited to DISPLAY.RECENT_ENTRIES_LIMIT), isDateInPast (helper to check if date is before today). Updated src/routes/journal/+page.svelte to use extracted statistics: added import for calculateStats and getRecentEntries, removed inline getStats() function (lines 262-267), removed inline getPastDates() function (lines 269-279), replaced getStats().completedCount and getStats().total calls with calculateStats(entryDates, yearDates).completedCount and calculateStats(entryDates, yearDates).total, replaced getPastDates() call with getRecentEntries(yearDates, entryDates, entries). Statistics display (completion count and recent entries) remains identical. Build passes. No functional changes, only extracted statistics logic into reusable utilities.
+
 ---
 
 #### Phase 2.5: Create Legacy Field Labels
@@ -662,6 +665,9 @@ export function getLegacyFieldLabel(fieldId: string): string {
    ```
 
 **Testing**: Verify legacy fields display correctly in old entries
+
+**✅ COMPLETED (Phase 2.5)**:
+Created `src/lib/legacy-field-labels.ts` with LEGACY_FIELD_LABELS constant (maps legacy field IDs to human-readable labels) and getLegacyFieldLabel function (returns label from constant or fieldId as fallback). Updated src/routes/entry/[date]/+page.svelte to use extracted utility: added import for getLegacyFieldLabel, removed inline getLegacyFieldLabel function (lines 82-107) which contained duplicate labels object. Legacy field display in old entries remains identical. Build passes. No functional changes, only extracted duplicate legacy field label mapping into reusable constant and utility.
 
 ---
 
@@ -788,6 +794,9 @@ export function getLegacyFieldLabel(fieldId: string): string {
 
 **Testing**: Verify all icons render identically
 
+**✅ COMPLETED (Phase 3.1)**:
+Created `src/lib/components/Icons.svelte` with 11 icon variants: settings, menu, close, chevron, check, trash, location, sun, moon, download, arrow-left, and handle. Each icon accepts `name` prop (type literal) and optional `size` prop (default 16). Fixed SVG attribute issue - replaced invalid `{size}` attribute with proper `width={size} height={size}` attributes for SVG compatibility. Updated 4 files to use Icon component: src/routes/journal/+page.svelte (replaced 10 inline SVGs: chevron in location dropdown, check in location list, 2 block handles, settings gear, menu book, close button, trash for location delete, location pin for GPS, download for backup, sun/moon for theme toggle), src/routes/entry/[date]/+page.svelte (replaced arrow-left in back button), src/routes/+layout.svelte (added import, no SVGs to replace), src/routes/+page.svelte (added import, no SVGs to replace). All icons render identically to original SVGs. Build passes. No functional changes, only extracted duplicate SVG code into reusable icon component.
+
 ---
 
 #### Phase 3.2: Create Spinner Component
@@ -854,6 +863,9 @@ export function getLegacyFieldLabel(fieldId: string): string {
 **Note**: Keep CSS classes in `app.css` for backward compatibility (lines 382-389, 1376-1383, 1509-1516)
 
 **Testing**: Verify all spinners animate identically
+
+**✅ COMPLETED (Phase 3.2)**:
+Created `src/lib/components/Spinner.svelte` with three variants: default (standard spinner with var(--border) color), gps (location capture with var(--border) border and var(--accent) top), text (white border for dark backgrounds). Component accepts `size` prop (small/medium/large with 14px/20px/24px mapping) and `variant` prop (default/gps/text). Animation uses 0.8s linear infinite rotation. Updated 2 files to use Spinner component: src/routes/journal/+page.svelte (replaced 7 inline spinners: 2 `<div class="spinner"></div>` with `<Spinner />`, 1 `<span class="gps-spinner"></span>` with `<Spinner variant="gps" size="small" />`, 3 `<span class="gps-spinner-small"></span>` with `<Spinner variant="text" size="small" />`), src/routes/entry/[date]/+page.svelte (replaced 1 `<div class="spinner"></div>` with `<Spinner />`). All spinner animations remain visually identical. Build passes. No functional changes, only extracted duplicate spinner CSS/HTML into reusable component.
 
 ---
 
@@ -1007,6 +1019,9 @@ export function getLegacyFieldLabel(fieldId: string): string {
 **Note**: Keep CSS in `app.css` for backward compatibility (lines 879-970)
 
 **Testing**: Verify modal opens, closes, and displays identically
+
+**✅ COMPLETED (Phase 3.3)**:
+Created `src/lib/components/Modal.svelte` with overlay, header, and close button. Component accepts `open` (boolean), `title` (string), `onclose` (callback), and `children` (snippet) props. Uses modern Svelte 5 syntax with callback prop instead of createEventDispatcher(). Fixed issue from plan spec by adding missing @keyframes fadeIn animation. Added svelte-ignore comments for accessibility where intentional. Updated src/routes/journal/+page.svelte to use Modal component: added Modal import, replaced entire settings modal HTML (lines 729-886) with `<Modal open={settingsOpen} title="Settings" onclose={() => settingsOpen = false}>` containing all original settings content (locations list, add location forms, backup section). Modal overlay with onclick, modal content with stopPropagation for proper click-outside behavior. Modal animations (fadeIn 150ms, modalSlideUp 200ms) match original. Build passes. No functional changes, only extracted duplicate modal HTML/CSS into reusable component.
 
 ---
 

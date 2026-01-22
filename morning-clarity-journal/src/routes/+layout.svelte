@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import type { Snippet } from 'svelte';
+	import Icon from '$lib/components/Icons.svelte';
 	
 	let { children }: { children: Snippet } = $props();
 	

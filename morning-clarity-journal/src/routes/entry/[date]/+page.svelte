@@ -6,6 +6,9 @@ import { journalTemplate, getCurrentFieldIds } from '$lib/template.js';
 import type { EntryWithData } from '$lib/db.js';
 import { DISPLAY } from '$lib/constants.js';
 import { formatCoordinate } from '$lib/location-utils.js';
+import { getLegacyFieldLabel } from '$lib/legacy-field-labels.js';
+import Icon from '$lib/components/Icons.svelte';
+import Spinner from '$lib/components/Spinner.svelte';
 	
 	let entry = $state<EntryWithData | null>(null);
 	let loading = $state(true);
@@ -78,34 +81,7 @@ import { formatCoordinate } from '$lib/location-utils.js';
 			value && !currentFieldIds.has(key)
 		);
 	}
-	
-	// Get legacy field display name
-	function getLegacyFieldLabel(fieldId: string): string {
-		const labels: Record<string, string> = {
-			'whyAvoiding': 'Why am I avoiding it?',
-			'realFear': 'The real fear is',
-			'howLikely': 'How likely (1-10)',
-			'howBad10Days': 'How bad in 10 days',
-			'howBad10Months': 'How bad in 10 months',
-			'howBad10Years': 'How bad in 10 years',
-			'kimTest': 'Kim test reflection',
-			'whatDoILose': 'What do I lose if fear wins',
-			'whatConsumeInsteadProduce': 'What will I consume instead of produce',
-			'egoWillTell': 'My ego will tell me',
-			'triggerTimeSituation': 'Trigger time/situation',
-			'temptedWhenWillBecause': 'When tempted',
-			'track': 'Track',
-			'nonNeg1What': 'Non-negotiable #1',
-			'nonNeg1When': 'Non-negotiable #1 when',
-			'nonNeg2What': 'Non-negotiable #2',
-			'nonNeg2When': 'Non-negotiable #2 when',
-			'nonNeg3What': 'Non-negotiable #3',
-			'nonNeg3When': 'Non-negotiable #3 when',
-			'trapRule': 'Trap rule'
-		};
-		return labels[fieldId] || fieldId;
-	}
-	
+
 	// Parse timestamp parts for display
 	function getTimestampParts(timestamp: string) {
 		// Format: "HH:MM:SS day month, year" or similar
@@ -121,7 +97,7 @@ import { formatCoordinate } from '$lib/location-utils.js';
 		<main class="content">
 			{#if loading}
 				<div class="message-container">
-					<div class="spinner"></div>
+					<Spinner />
 				</div>
 			{:else if error}
 				<div class="message-container">
@@ -226,9 +202,7 @@ import { formatCoordinate } from '$lib/location-utils.js';
 		
 		<!-- Back button -->
 		<button class="nav-btn back" onclick={goBack} aria-label="Back to journal">
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M19 12H5M12 19l-7-7 7-7"/>
-			</svg>
+			<Icon name="arrow-left" size={16} />
 		</button>
 	</div>
 </div>

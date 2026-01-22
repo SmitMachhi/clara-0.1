@@ -40,10 +40,10 @@ export function formatDateISO(date: Date): string {
 
 /**
  * Check if current time is past 2pm (14:00)
- * Can be disabled for development by setting PRIVATE_DISABLE_TIME_CUTOFF=true
+ * Can be disabled for development by setting VITE_DISABLE_TIME_CUTOFF=true
  */
 export function isPastCutoff(date: Date = new Date()): boolean {
-	if (import.meta.env.PRIVATE_DISABLE_TIME_CUTOFF === 'true') {
+	if (import.meta.env.VITE_DISABLE_TIME_CUTOFF === 'true') {
 		return false;
 	}
 	return date.getHours() >= TIME.CUTOFF_HOUR;

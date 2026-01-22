@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { TIME } from '$lib/constants.js';
+	import Icon from '$lib/components/Icons.svelte';
 
 	let password = $state('');
 	let error = $state('');
