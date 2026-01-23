@@ -1,46 +1,31 @@
 import type { Handle } from '@sveltejs/kit';
-import { validateSession } from '$lib/auth.js';
+import { env } from '$env/dynamic/private';
 
 export const handle: Handle = async ({ event, resolve }) => {
-	const sessionToken = event.cookies.get('session');
-	const isAuthenticated = validateSession(sessionToken);
-	
-	// Store auth state in locals
-	event.locals.isAuthenticated = isAuthenticated;
-	
-	// Protected routes - redirect to login if not authenticated
-	const protectedRoutes = ['/journal', '/entry'];
-	const isProtectedRoute = protectedRoutes.some(route => event.url.pathname.startsWith(route));
-	const isApiRoute = event.url.pathname.startsWith('/api/');
-	
-	// Allow certain API routes without authentication
-	if (event.url.pathname === '/api/auth' || event.url.pathname === '/api/seed-test') {
-		return resolve(event);
+	// Protect all /api/* routes with bearer token
+	if (event.url.pathname.startsWith('/api/')) {
+		const expectedToken = env.PUBLIC_API_TOKEN || 'dev-mcj-token-2026';
+		const authHeader = event.request.headers.get('authorization');
+		const queryToken = event.url.searchParams.get('token');
+
+		const isAuthorized =
+			(authHeader && authHeader === `Bearer ${expectedToken}`) ||
+			(queryToken && queryToken === expectedToken);
+
+		if (!isAuthorized) {
+			return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), {
+				status: 401,
+				headers: { 'content-type': 'application/json' }
+			});
+		}
 	}
-	
-	// Protect API routes (except auth)
-	if (isApiRoute && !isAuthenticated) {
-		return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-			status: 401,
-			headers: { 'Content-Type': 'application/json' }
-		});
+
+	const response = await resolve(event);
+
+	// Add cache headers for static build assets
+	if (event.url.pathname.startsWith('/_app/')) {
+		response.headers.set('cache-control', 'public, max-age=31536000, immutable');
 	}
-	
-	// Redirect to login for protected pages
-	if (isProtectedRoute && !isAuthenticated) {
-		return new Response(null, {
-			status: 302,
-			headers: { Location: '/' }
-		});
-	}
-	
-	// Redirect to journal if already authenticated and on login page
-	if (event.url.pathname === '/' && isAuthenticated) {
-		return new Response(null, {
-			status: 302,
-			headers: { Location: '/journal' }
-		});
-	}
-	
-	return resolve(event);
+
+	return response;
 };

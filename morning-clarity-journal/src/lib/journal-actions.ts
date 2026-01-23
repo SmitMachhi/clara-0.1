@@ -2,6 +2,7 @@ import type { Location, Entry } from '$lib/db.js';
 import { GPS } from '$lib/constants.js';
 import { handleGeolocationError, findMatchingPreset } from '$lib/location-utils.js';
 import { validateCoordinates } from '$lib/validation.js';
+import { apiFetch } from '$lib/api-client.js';
 
 export interface GpsCaptureResult {
 	matchedPresetId: number | null;
@@ -10,13 +11,13 @@ export interface GpsCaptureResult {
 }
 
 export async function fetchLocations(): Promise<Location[]> {
-	const res = await fetch('/api/locations');
+	const res = await apiFetch('/api/locations');
 	const data = await res.json();
 	return data.locations || [];
 }
 
 export async function fetchEntries(): Promise<{ entries: Entry[]; entryDates: string[] }> {
-	const res = await fetch('/api/entries');
+	const res = await apiFetch('/api/entries');
 	const data = await res.json();
 	return { entries: data.entries, entryDates: data.entryDates };
 }
@@ -27,7 +28,7 @@ export async function submitEntry(
 	capturedLat: number | null,
 	capturedLng: number | null
 ): Promise<{ ok: boolean; error?: string }> {
-	const res = await fetch('/api/entries', {
+	const res = await apiFetch('/api/entries', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
@@ -95,7 +96,7 @@ export function captureAndSaveLocation(
 			const lng = position.coords.longitude;
 
 			try {
-				const res = await fetch('/api/locations', {
+				const res = await apiFetch('/api/locations', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ name: name.trim(), lat, lng, address: null })
@@ -140,7 +141,7 @@ export async function addLocation(
 		return { ok: false, error: coordValidation.error };
 	}
 
-	const res = await fetch('/api/locations', {
+	const res = await apiFetch('/api/locations', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
@@ -159,18 +160,18 @@ export async function addLocation(
 }
 
 export async function deleteLocation(id: number): Promise<boolean> {
-	const res = await fetch(`/api/locations/${id}`, { method: 'DELETE' });
+	const res = await apiFetch(`/api/locations/${id}`, { method: 'DELETE' });
 	return res.ok;
 }
 
 export async function fetchBackups(): Promise<{ filename: string; size: number; created: string }[]> {
-	const res = await fetch('/api/backup?action=list');
+	const res = await apiFetch('/api/backup?action=list');
 	const data = await res.json();
 	return data.success ? data.backups : [];
 }
 
 export async function requestBackup(): Promise<{ ok: boolean; error?: string; message?: string }> {
-	const res = await fetch('/api/backup', {
+	const res = await apiFetch('/api/backup', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' }
 	});

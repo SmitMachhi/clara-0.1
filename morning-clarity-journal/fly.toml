@@ -1,7 +1,8 @@
 # fly.toml configuration for Morning Clarity Journal
+# NOTE: Single-machine deployment required due to in-memory sessions (client-side encryption)
 
-app = "morning-clarity-journal"
-primary_region = "sjc"
+app = "clara 0.1"
+primary_region = "yyz"
 
 [build]
 

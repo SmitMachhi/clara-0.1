@@ -4,7 +4,7 @@
 
 <script lang="ts">
 	interface Props {
-		name: 'settings' | 'menu' | 'close' | 'chevron' | 'check' | 'trash' | 'location' | 'sun' | 'moon' | 'download' | 'arrow-left' | 'handle';
+		name: 'settings' | 'menu' | 'close' | 'chevron' | 'check' | 'trash' | 'location' | 'sun' | 'moon' | 'download' | 'arrow-left' | 'lock' | 'handle';
 		size?: number;
 	}
 	let { name, size = 16 }: Props = $props();
@@ -72,6 +72,11 @@
 {:else if name === 'arrow-left'}
 	<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 		<path d="M19 12H5M12 19l-7-7 7-7"/>
+	</svg>
+{:else if name === 'lock'}
+	<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+		<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+		<path d="M7 11V7a5 5 0 0110 0v4"/>
 	</svg>
 {:else if name === 'handle'}
 	<svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">

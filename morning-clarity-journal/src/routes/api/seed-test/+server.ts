@@ -68,19 +68,29 @@ export const POST: RequestHandler = async () => {
 		trapRule: ''
 	};
 	
+	// Create placeholder encrypted data (client-side encryption required for real use)
+	// For testing, create a minimal valid encryption structure
+	const placeholderEncryption = JSON.stringify({
+		version: 2,
+		salt_b64: 'dGVzdHNhbHR0ZXN0c2FsdHRlc3RzYWx0',
+		iv_b64: 'dGVzdGl2dGVzdGl2dGVzdGl2',
+		auth_tag_b64: 'dGVzdGF1dGh0YWd0ZXN0YXV0aGFn',
+		ciphertext_b64: Buffer.from(JSON.stringify(testData)).toString('base64')
+	});
+	
 	try {
 		if (hasEntryForDate(date)) {
 			// Update existing entry
-			const updated = updateEntry(date, timestamp, homeLocationId, testData);
+			const updated = updateEntry(date, timestamp, homeLocationId, placeholderEncryption);
 			if (updated) {
-				return json({ success: true, message: 'Entry updated', date, locationId: homeLocationId });
+				return json({ success: true, message: 'Entry updated (placeholder encryption)', date, locationId: homeLocationId });
 			} else {
 				return json({ success: false, error: 'Failed to update entry' }, { status: 500 });
 			}
 		} else {
 			// Create new entry
-			const id = saveEntry(date, timestamp, homeLocationId, testData);
-			return json({ success: true, id, date, locationId: homeLocationId });
+			const id = saveEntry(date, timestamp, homeLocationId, placeholderEncryption);
+			return json({ success: true, id, date, locationId: homeLocationId, message: 'Entry created with placeholder encryption - use client to save real data' });
 		}
 	} catch (error) {
 		console.error('Seed test error:', error);

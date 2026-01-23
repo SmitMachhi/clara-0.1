@@ -5,8 +5,11 @@
 <script lang="ts">
 	import { TIME } from '$lib/constants.js';
 	import { formatCoordinate } from '$lib/location-utils.js';
-	import { captureAndSaveLocation, addLocation, deleteLocation, requestBackup, fetchBackups } from '$lib/journal-actions.js';
+	import { captureAndSaveLocation, addLocation, deleteLocation, requestBackup, fetchBackups, fetchEntries } from '$lib/journal-actions.js';
 	import type { Location } from '$lib/db.js';
+	import { PUBLIC_API_TOKEN } from '$env/static/public';
+	import { encryptClient, decryptClient } from '$lib/crypto.js';
+	import { apiFetch } from '$lib/api-client.js';
 	import Icon from '$lib/components/Icons.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -37,6 +40,16 @@
 	let backupSuccess = $state('');
 	let backups = $state<{ filename: string; size: number; created: string }[]>([]);
 	let isLoadingBackups = $state(false);
+
+	// Passphrase change state
+	let showPassphraseChange = $state(false);
+	let currentPassphrase = $state('');
+	let newPassphrase = $state('');
+	let confirmPassphrase = $state('');
+	let passphraseError = $state('');
+	let passphraseSuccess = $state('');
+	let isChangingPassphrase = $state(false);
+	let passphraseProgress = $state({ current: 0, total: 0 });
 
 	function getCurrentLocationAndSave() {
 		isGettingLocation = true;
@@ -117,11 +130,11 @@
 	});
 
 	function downloadBackup(filename: string) {
-		window.open(`/api/backup?action=download&filename=${encodeURIComponent(filename)}`, '_blank');
+		window.open(`/api/backup?action=download&filename=${encodeURIComponent(filename)}&token=${encodeURIComponent(PUBLIC_API_TOKEN)}`, '_blank');
 	}
 
 	function exportCsv() {
-		window.open('/api/backup?action=export-csv', '_blank');
+		window.open(`/api/backup?action=export-csv&token=${encodeURIComponent(PUBLIC_API_TOKEN)}`, '_blank');
 	}
 
 	function formatBackupDate(dateStr: string): string {
@@ -156,6 +169,101 @@
 			backupError = 'Failed to create backup';
 		} finally {
 			isCreatingBackup = false;
+		}
+	}
+
+	async function changePassphrase() {
+		passphraseError = '';
+		passphraseSuccess = '';
+
+		if (!currentPassphrase || !newPassphrase || !confirmPassphrase) {
+			passphraseError = 'All fields are required';
+			return;
+		}
+
+		if (newPassphrase !== confirmPassphrase) {
+			passphraseError = 'New passphrases do not match';
+			return;
+		}
+
+		if (newPassphrase === currentPassphrase) {
+			passphraseError = 'New passphrase must be different';
+			return;
+		}
+
+		const storedPassphrase = localStorage.getItem('journal-passphrase');
+		if (currentPassphrase !== storedPassphrase) {
+			passphraseError = 'Current passphrase is incorrect';
+			return;
+		}
+
+		isChangingPassphrase = true;
+
+		try {
+			// Fetch all entries
+			const { entries } = await fetchEntries();
+			passphraseProgress = { current: 0, total: entries.length };
+
+			const migratedEntries: { date: string; timestamp: string; encryptedData: string }[] = [];
+
+			for (const entry of entries) {
+				const res = await apiFetch(`/api/entries/${entry.date}`);
+				if (!res.ok) {
+					passphraseError = `Failed to load entry ${entry.date}`;
+					isChangingPassphrase = false;
+					return;
+				}
+
+				const entryData = await res.json();
+				const encrypted = entryData.encryption;
+
+				// Decrypt with current passphrase
+				const decrypted = await decryptClient(encrypted, currentPassphrase);
+
+				// Re-encrypt with new passphrase
+				const newEncrypted = await encryptClient(decrypted, newPassphrase);
+
+				migratedEntries.push({
+					date: entry.date,
+					timestamp: entry.timestamp,
+					encryptedData: JSON.stringify(newEncrypted)
+				});
+
+				passphraseProgress.current++;
+			}
+
+			// Send all re-encrypted entries to server
+			if (migratedEntries.length > 0) {
+				const res = await apiFetch('/api/entries/migrate', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ entries: migratedEntries })
+				});
+
+				if (!res.ok) {
+					const data = await res.json();
+					passphraseError = data.error || 'Failed to save re-encrypted entries';
+					isChangingPassphrase = false;
+					return;
+				}
+			}
+
+			// Update localStorage with new passphrase
+			localStorage.setItem('journal-passphrase', newPassphrase);
+
+			passphraseSuccess = 'Passphrase changed successfully';
+			currentPassphrase = '';
+			newPassphrase = '';
+			confirmPassphrase = '';
+			showPassphraseChange = false;
+
+			setTimeout(() => {
+				passphraseSuccess = '';
+			}, TIME.SUCCESS_MESSAGE_DURATION_MS);
+		} catch (err) {
+			passphraseError = 'Failed to change passphrase. Your old passphrase is still active.';
+		} finally {
+			isChangingPassphrase = false;
 		}
 	}
 </script>
@@ -320,6 +428,79 @@
 							</button>
 						</div>
 					{/each}
+				</div>
+			{/if}
+		</div>
+
+		<h3 class="settings-section-title" style="margin-top: 2rem;">Security</h3>
+		<div class="backup-section">
+			{#if passphraseSuccess}
+				<p class="backup-success">{passphraseSuccess}</p>
+			{/if}
+
+			{#if !showPassphraseChange}
+				<button
+					type="button"
+					class="backup-btn"
+					onclick={() => showPassphraseChange = true}
+				>
+					<Icon name="lock" size={16} />
+					<span>Change Passphrase</span>
+				</button>
+			{:else}
+				<div class="passphrase-form">
+					<input
+						type="password"
+						class="passphrase-input"
+						placeholder="Current passphrase"
+						bind:value={currentPassphrase}
+						disabled={isChangingPassphrase}
+					/>
+					<input
+						type="password"
+						class="passphrase-input"
+						placeholder="New passphrase"
+						bind:value={newPassphrase}
+						disabled={isChangingPassphrase}
+					/>
+					<input
+						type="password"
+						class="passphrase-input"
+						placeholder="Confirm new passphrase"
+						bind:value={confirmPassphrase}
+						disabled={isChangingPassphrase}
+					/>
+					{#if passphraseError}
+						<p class="location-error">{passphraseError}</p>
+					{/if}
+					{#if isChangingPassphrase}
+						<p class="backup-description">
+							Re-encrypting {passphraseProgress.current} of {passphraseProgress.total} entries...
+						</p>
+					{/if}
+					<div class="backup-actions">
+						<button
+							type="button"
+							class="backup-btn"
+							onclick={changePassphrase}
+							disabled={isChangingPassphrase || !currentPassphrase || !newPassphrase || !confirmPassphrase}
+						>
+							{#if isChangingPassphrase}
+								<Spinner variant="text" size="small" />
+								<span>Changing...</span>
+							{:else}
+								<span>Change Passphrase</span>
+							{/if}
+						</button>
+						<button
+							type="button"
+							class="backup-btn backup-btn-secondary"
+							onclick={() => { showPassphraseChange = false; passphraseError = ''; currentPassphrase = ''; newPassphrase = ''; confirmPassphrase = ''; }}
+							disabled={isChangingPassphrase}
+						>
+							<span>Cancel</span>
+						</button>
+					</div>
 				</div>
 			{/if}
 		</div>

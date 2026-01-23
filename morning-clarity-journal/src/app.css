@@ -1720,6 +1720,39 @@ button.recent-item:hover {
 }
 
 /* ========================================
+   PASSPHRASE CHANGE
+   ======================================== */
+
+.passphrase-form {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.passphrase-input {
+	padding: 8px 10px;
+	background: transparent;
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	font-size: 0.875rem;
+	color: var(--text);
+	width: 100%;
+}
+
+.passphrase-input:focus {
+	border-color: var(--accent);
+	outline: none;
+}
+
+.passphrase-input::placeholder {
+	color: var(--text-tertiary);
+}
+
+.passphrase-input:disabled {
+	opacity: 0.5;
+}
+
+/* ========================================
    RESPONSIVE LAYOUT
    Gradual adaptation across breakpoints
    ======================================== */

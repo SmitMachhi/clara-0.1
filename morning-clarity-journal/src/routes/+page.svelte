@@ -1,88 +1,73 @@
-<!-- purpose: Login page with password authentication -->
-<!-- context: Entry point for authenticated users -->
-<!-- location: src/routes/+page.svelte -->
-
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { TIME } from '$lib/constants.js';
 
-	let password = $state('');
+	let passphrase = $state('');
 	let error = $state('');
 	let isShaking = $state(false);
-	let isLoading = $state(false);
 
-	async function handleSubmit(e: Event) {
-		e.preventDefault();
-		if (isLoading) return;
-
-		isLoading = true;
-		error = '';
-
-		try {
-			const response = await fetch('/api/auth', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ password })
-			});
-
-			if (response.ok) {
-				goto('/journal');
-			} else {
-				error = 'Wrong password';
-				isShaking = true;
-				setTimeout(() => {
-					isShaking = false;
-				}, TIME.SHAKE_DURATION_MS);
-				password = '';
-			}
-		} catch (err) {
-			error = 'Something went wrong';
-		} finally {
-			isLoading = false;
-		}
-	}
+	const LEGACY_PASSWORD = 'ismathrelatedtoscience';
 
 	function handleKeypress(e: KeyboardEvent) {
 		if (e.key === 'Enter') {
 			e.preventDefault();
-			const formEvent = new Event('submit', { bubbles: true, cancelable: true });
-			(e.target as HTMLElement).closest('form')?.dispatchEvent(formEvent);
+			handleSubmit();
 		}
+	}
+
+	function handleSubmit() {
+		if (!passphrase) {
+			error = 'Enter a passphrase';
+			isShaking = true;
+			setTimeout(() => isShaking = false, 500);
+			return;
+		}
+
+		if (passphrase === LEGACY_PASSWORD) {
+			error = 'Please set a new passphrase for client-side encryption';
+			isShaking = true;
+			setTimeout(() => isShaking = false, 500);
+			return;
+		}
+
+		localStorage.setItem('journal-passphrase', passphrase);
+		goto('/journal');
 	}
 </script>
 
 <div class="min-h-screen flex items-center justify-center bg-[var(--bg)] p-[var(--space-lg)]">
 	<div class="w-full max-w-[320px] animate-fade-in">
-		<!-- Minimal title - just the name, honest -->
 		<h1 class="text-center text-xl text-[var(--text)] mb-[var(--space-2xl)] font-serif">
 			clara
 		</h1>
 		
-		<form onsubmit={handleSubmit}>
- <div class={isShaking ? 'shake' : ''}>
-				<input
-					type="password"
-					bind:value={password}
-					placeholder="Password"
-					class="w-full text-center"
-					autofocus
-					onkeydown={handleKeypress}
-				/>
-			</div>
-			
-			{#if error}
-				<p class="text-[var(--missed)] text-sm text-center mt-[var(--space-md)] animate-fade-in">
-					{error}
-				</p>
-			{/if}
-			
-			<button
-				type="submit"
-				disabled={isLoading || !password}
-				class="w-full mt-[var(--space-lg)] py-[var(--space-md)] bg-[var(--surface-elevated)] text-[var(--text)] rounded-[var(--radius-md)] transition-colors hover:bg-[var(--border)] disabled:opacity-40 disabled:cursor-not-allowed"
-			>
-				{isLoading ? '...' : 'Enter'}
-			</button>
-		</form>
+		<div class={isShaking ? 'shake' : ''}>
+			<input
+				type="password"
+				bind:value={passphrase}
+				placeholder="Passphrase"
+				class="w-full text-center"
+				autofocus
+				onkeydown={handleKeypress}
+			/>
+		</div>
+		
+		{#if error}
+			<p class="text-[var(--missed)] text-sm text-center mt-[var(--space-md)] animate-fade-in">
+				{error}
+			</p>
+		{/if}
+		
+		<button
+			type="button"
+			disabled={!passphrase}
+			onclick={handleSubmit}
+			class="w-full mt-[var(--space-lg)] py-[var(--space-md)] bg-[var(--surface-elevated)] text-[var(--text)] rounded-[var(--radius-md)] transition-colors hover:bg-[var(--border)] disabled:opacity-40 disabled:cursor-not-allowed"
+		>
+			Unlock
+		</button>
+		
+		<p class="text-xs text-[var(--text-muted)] text-center mt-[var(--space-lg)]">
+			Your passphrase encrypts data on your device.<br/>Lost passphrase = lost data.
+		</p>
 	</div>
 </div>

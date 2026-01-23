@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { createBackup, getBackups, getAllEntriesDecrypted } from '$lib/db.js';
+import { createBackup, getBackups } from '$lib/db.js';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { successResponse, errorResponse, notFoundResponse } from '$lib/api-helpers.js';
@@ -16,48 +16,6 @@ export const GET: RequestHandler = async ({ url }) => {
 				created: b.created.toISOString()
 			}))
 		});
-	}
-
-	if (action === 'export-csv') {
-		try {
-			const entries = getAllEntriesDecrypted();
-			const headers = [
-				'date', 'timestamp', 'location_name',
-				'whoAmIDoingThisFor', 'whatMakingAnxious', 'whatAvoiding', 'whyAvoiding',
-				'fearUnderneath', 'evidenceFearNotTrue', 'upsideIfAct',
-				'consumeInsteadProduce', 'exactDistraction', 'wasteToday',
-				'commitment1', 'commitment2', 'commitment3'
-			];
-
-			const escapeCsv = (val: string) => {
-				if (!val) return '';
-				if (val.includes(',') || val.includes('"') || val.includes('\n')) {
-					return '"' + val.replace(/"/g, '""') + '"';
-				}
-				return val;
-			};
-
-			const rows = entries.map(entry => headers.map(h => {
-				if (h === 'date') return escapeCsv(entry.date);
-				if (h === 'timestamp') return escapeCsv(entry.timestamp);
-				if (h === 'location_name') return escapeCsv(entry.location_name || '');
-				return escapeCsv((entry.data as Record<string, string>)[h] || '');
-			}).join(','));
-
-			const csv = headers.join(',') + '\n' + rows.join('\n');
-			const filename = `journal-export-${new Date().toISOString().slice(0, 10)}.csv`;
-
-			return new Response(csv, {
-				headers: {
-					'Content-Type': 'text/csv',
-					'Content-Disposition': `attachment; filename="${filename}"`,
-					'Content-Length': new TextEncoder().encode(csv).length.toString()
-				}
-			});
-		} catch (error) {
-			console.error('CSV export error:', error);
-			return errorResponse('Failed to export CSV', 500);
-		}
 	}
 
 	if (action === 'download' && url.searchParams.get('filename')) {
@@ -83,7 +41,7 @@ export const GET: RequestHandler = async ({ url }) => {
 		}
 	}
 
-	return errorResponse('Invalid action');
+	return errorResponse('Invalid action - CSV export removed with client-side encryption');
 };
 
 export const POST: RequestHandler = async () => {

@@ -6,45 +6,71 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { slide } from 'svelte/transition';
-import { journalTemplate, getCurrentFieldIds } from '$lib/template.js';
-import type { EntryWithData } from '$lib/db.js';
-import { formatCoordinate } from '$lib/location-utils.js';
-import { getLegacyFieldLabel } from '$lib/legacy-field-labels.js';
-import Icon from '$lib/components/Icons.svelte';
-import Spinner from '$lib/components/Spinner.svelte';
-	
+	import { journalTemplate, getCurrentFieldIds } from '$lib/template.js';
+	import type { EntryWithData, JournalData } from '$lib/db.js';
+	import { formatCoordinate } from '$lib/location-utils.js';
+	import { getLegacyFieldLabel } from '$lib/legacy-field-labels.js';
+	import { decryptClient } from '$lib/crypto.js';
+	import { apiFetch } from '$lib/api-client.js';
+	import Icon from '$lib/components/Icons.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
+
 	let entry = $state<EntryWithData | null>(null);
 	let loading = $state(true);
 	let error = $state('');
 	let expandedQuestions = $state<Set<string>>(new Set());
-	
+	let passphrase = $state('');
+
 	$effect(() => {
 		if ($page.params.date) {
 			loadEntry($page.params.date);
 		}
 	});
-	
+
 	async function loadEntry(date: string) {
 		loading = true;
 		error = '';
-		
+
 		try {
-			const res = await fetch(`/api/entries/${date}`);
+			const storedPassphrase = localStorage.getItem('journal-passphrase');
+			if (!storedPassphrase) {
+				goto('/');
+				return;
+			}
+			passphrase = storedPassphrase;
+
+			const res = await apiFetch(`/api/entries/${date}`);
 			if (res.ok) {
-				entry = await res.json();
-				// Auto-expand all questions that have content
-				if (entry) {
-					const questionsWithContent = new Set<string>();
-					for (const question of journalTemplate) {
-						for (const field of question.fields) {
-							if (entry.data[field.id as keyof typeof entry.data]) {
-								questionsWithContent.add(question.id);
-								break;
-							}
+				const apiEntry = await res.json();
+
+				const encrypted = apiEntry.encryption;
+				let decryptedData: JournalData;
+
+				if (encrypted && encrypted.version === 2) {
+					const decryptedJson = await decryptClient(encrypted, passphrase);
+					decryptedData = JSON.parse(decryptedJson) as JournalData;
+				} else {
+					error = 'Entry format not supported';
+					loading = false;
+					return;
+				}
+
+				const loadedEntry = {
+					...apiEntry,
+					data: decryptedData
+				};
+				entry = loadedEntry;
+
+				const questionsWithContent = new Set<string>();
+				for (const question of journalTemplate) {
+					for (const field of question.fields) {
+						if (loadedEntry.data[field.id as keyof typeof loadedEntry.data]) {
+							questionsWithContent.add(question.id);
+							break;
 						}
 					}
-					expandedQuestions = questionsWithContent;
 				}
+				expandedQuestions = questionsWithContent;
 			} else if (res.status === 404) {
 				error = 'Entry not found';
 			} else {

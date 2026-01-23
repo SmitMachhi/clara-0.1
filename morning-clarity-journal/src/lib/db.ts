@@ -1,5 +1,4 @@
 import Database from 'better-sqlite3';
-import { generateSalt, deriveKey, encryptJSON, decryptJSON } from './crypto.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -10,7 +9,7 @@ const DB_PATH = path.join(DATA_DIR, 'journal.db');
 // Lazy-initialized database connection
 let db: Database.Database | null = null;
 
-function getDb(): Database.Database {
+function getDbInternal(): Database.Database {
 	if (db) return db;
 	
 	// Ensure data directory exists
@@ -76,41 +75,6 @@ function getDb(): Database.Database {
 	return db;
 }
 
-// The hardcoded password
-const PASSWORD = 'ismathrelatedtoscience';
-
-/**
- * Get or create the salt for key derivation
- */
-export function getSalt(): Buffer {
-	const database = getDb();
-	const row = database.prepare('SELECT value FROM config WHERE key = ?').get('salt') as { value: string } | undefined;
-	
-	if (row) {
-		return Buffer.from(row.value, 'hex');
-	}
-	
-	// Generate and store new salt
-	const salt = generateSalt();
-	database.prepare('INSERT INTO config (key, value) VALUES (?, ?)').run('salt', salt.toString('hex'));
-	return salt;
-}
-
-/**
- * Get the encryption key derived from password
- */
-export function getEncryptionKey(): Buffer {
-	const salt = getSalt();
-	return deriveKey(PASSWORD, salt);
-}
-
-/**
- * Verify password
- */
-export function verifyPassword(input: string): boolean {
-	return input === PASSWORD;
-}
-
 // Journal entry types
 export interface JournalData {
 	whoAmIDoingThisFor: string;
@@ -164,48 +128,46 @@ export interface EntryWithData extends Entry {
 }
 
 /**
- * Save a new journal entry
+ * Save a new journal entry with client-encrypted data
  */
 export function saveEntry(
 	date: string, 
 	timestamp: string, 
 	locationId: number | null, 
-	data: JournalData,
+	encryptedData: string,
 	capturedLat?: number | null,
 	capturedLng?: number | null
 ): number {
 	const database = getDb();
-	const key = getEncryptionKey();
-	const encryptedData = encryptJSON(data, key);
+	const dataBuffer = Buffer.from(encryptedData, 'utf8');
 	
 	const result = database.prepare(`
 		INSERT INTO entries (date, timestamp, location_id, captured_lat, captured_lng, encrypted_data)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`).run(date, timestamp, locationId, capturedLat ?? null, capturedLng ?? null, encryptedData);
+	`).run(date, timestamp, locationId, capturedLat ?? null, capturedLng ?? null, dataBuffer);
 	
 	return result.lastInsertRowid as number;
 }
 
 /**
- * Update an existing journal entry
+ * Update an existing journal entry with client-encrypted data
  */
 export function updateEntry(
 	date: string, 
 	timestamp: string, 
 	locationId: number | null, 
-	data: JournalData,
+	encryptedData: string,
 	capturedLat?: number | null,
 	capturedLng?: number | null
 ): boolean {
 	const database = getDb();
-	const key = getEncryptionKey();
-	const encryptedData = encryptJSON(data, key);
+	const dataBuffer = Buffer.from(encryptedData, 'utf8');
 	
 	const result = database.prepare(`
 		UPDATE entries 
 		SET timestamp = ?, location_id = ?, captured_lat = ?, captured_lng = ?, encrypted_data = ?
 		WHERE date = ?
-	`).run(timestamp, locationId, capturedLat ?? null, capturedLng ?? null, encryptedData, date);
+	`).run(timestamp, locationId, capturedLat ?? null, capturedLng ?? null, dataBuffer, date);
 	
 	return result.changes > 0;
 }
@@ -224,7 +186,7 @@ export function getAllEntries(): Entry[] {
 }
 
 /**
- * Get all entries with decrypted data (for CSV export)
+ * Get all entries with encrypted data (for CSV export, client will decrypt)
  */
 export function getAllEntriesDecrypted(): EntryWithData[] {
 	const database = getDb();
@@ -235,7 +197,6 @@ export function getAllEntriesDecrypted(): EntryWithData[] {
 		ORDER BY e.date DESC
 	`).all() as (Entry & { encrypted_data: Buffer })[];
 
-	const key = getEncryptionKey();
 	return rows.map(row => ({
 		id: row.id,
 		date: row.date,
@@ -245,12 +206,12 @@ export function getAllEntriesDecrypted(): EntryWithData[] {
 		captured_lat: row.captured_lat,
 		captured_lng: row.captured_lng,
 		created_at: row.created_at,
-		data: decryptJSON<JournalData>(row.encrypted_data, key)
+		data: row.encrypted_data.toString('utf8') as any
 	}));
 }
 
 /**
- * Get an entry by date with decrypted data
+ * Get an entry by date with encrypted data (client will decrypt)
  */
 export function getEntryByDate(date: string): EntryWithData | null {
 	const database = getDb();
@@ -263,8 +224,7 @@ export function getEntryByDate(date: string): EntryWithData | null {
 	
 	if (!row) return null;
 	
-	const key = getEncryptionKey();
-	const data = decryptJSON<JournalData>(row.encrypted_data, key);
+	const encryptedJson = row.encrypted_data.toString('utf8');
 	
 	return {
 		id: row.id,
@@ -275,8 +235,15 @@ export function getEntryByDate(date: string): EntryWithData | null {
 		captured_lat: row.captured_lat,
 		captured_lng: row.captured_lng,
 		created_at: row.created_at,
-		data
+		data: encryptedJson as any
 	};
+}
+
+/**
+ * Get database instance (exported for migration endpoint)
+ */
+export function getDb(): Database.Database {
+	return getDbInternal();
 }
 
 /**
@@ -371,6 +338,16 @@ export function createBackup(): string {
 	
 	// Copy the database file
 	fs.copyFileSync(DB_PATH, backupPath);
+	
+	// Prune old backups - keep only the last 5
+	const backups = getBackups();
+	const RETENTION_COUNT = 5;
+	if (backups.length > RETENTION_COUNT) {
+		const backupsToDelete = backups.slice(RETENTION_COUNT);
+		for (const backup of backupsToDelete) {
+			fs.unlinkSync(backup.path);
+		}
+	}
 	
 	return backupPath;
 }
