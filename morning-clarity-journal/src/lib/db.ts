@@ -52,7 +52,7 @@ function getDb(): Database.Database {
 	`);
 	
 	// Migration: Add new columns to existing tables if they don't exist
-	const tableInfo = db.prepare("PRAGMA table_info(locations)").all() as { name: string }[];
+	const tableInfo = db.prepare('PRAGMA table_info(locations)').all() as { name: string }[];
 	const locationColumns = tableInfo.map(col => col.name);
 	
 	if (!locationColumns.includes('lat')) {
@@ -63,7 +63,7 @@ function getDb(): Database.Database {
 		`);
 	}
 	
-	const entriesInfo = db.prepare("PRAGMA table_info(entries)").all() as { name: string }[];
+	const entriesInfo = db.prepare('PRAGMA table_info(entries)').all() as { name: string }[];
 	const entriesColumns = entriesInfo.map(col => col.name);
 	
 	if (!entriesColumns.includes('captured_lat')) {

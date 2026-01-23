@@ -11,6 +11,7 @@
 	import type { Location, Entry } from '$lib/db.js';
 	import { GPS, TIME } from '$lib/constants.js';
 	import { handleGeolocationError, formatCoordinate, findMatchingPreset } from '$lib/location-utils.js';
+	import { validateCoordinates } from '$lib/validation.js';
 	import { calculateStats, getRecentEntries } from '$lib/stats.js';
 	import Icon from '$lib/components/Icons.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -99,11 +100,13 @@
 			currentTimestamp = formatDateTime(now);
 			dateParts = getDateTimeParts(now);
 			isPastTime = isPastCutoff();
-		}, 1000);
+		}, TIME.CLOCK_UPDATE_INTERVAL_MS);
 		
 		// Load data
 		loadAllData().then(() => {
 			hasEntryToday = entryDates.includes(today);
+		}).catch((err) => {
+			console.error('Failed to load data', err);
 		});
 		
 		return () => {
@@ -343,9 +346,10 @@
 			locationError = 'Invalid coordinates';
 			return;
 		}
-		
-		if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-			locationError = 'Coordinates out of range';
+
+		const coordValidation = validateCoordinates(lat, lng);
+		if (!coordValidation.valid) {
+			locationError = coordValidation.error!;
 			return;
 		}
 		
