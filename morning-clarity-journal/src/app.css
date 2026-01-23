@@ -476,7 +476,9 @@ button:disabled {
    ======================================== */
 
 .page-content {
-	padding-bottom: 100px;
+	padding-bottom: 80px;
+	display: flex;
+	flex-direction: column;
 }
 
 /* ========================================
@@ -602,7 +604,7 @@ button:disabled {
 
 .field-block {
 	position: relative;
-	margin-bottom: 4px;
+	margin-bottom: 8px;
 }
 
 .field-block > .block-controls {
@@ -610,11 +612,12 @@ button:disabled {
 }
 
 .field-label {
-	font-size: 0.875rem;
+	font-size: 0.8125rem;
 	color: var(--text-secondary);
-	margin-bottom: 2px;
-	padding-left: 2px;
+	margin-bottom: 4px;
+	padding-left: 8px;
 	letter-spacing: -0.003em;
+	font-weight: 500;
 }
 
 /* ========================================
@@ -625,8 +628,10 @@ button:disabled {
 .field-input {
 	display: block;
 	width: 100%;
-	min-height: 1.5em;
-	padding: 4px 6px;
+	min-height: 2.5em;
+	max-height: 40vh;
+	overflow-y: auto;
+	padding: 6px 8px;
 	font-size: 1rem;
 	line-height: 1.5;
 	letter-spacing: -0.003em;
@@ -638,27 +643,23 @@ button:disabled {
 	white-space: pre-wrap;
 	word-break: break-word;
 	caret-color: var(--text);
+	transition: background 0.1s ease;
 }
 
-/* Fix cursor position in empty contenteditable */
+/* Ensure cursor appears in empty contenteditable */
 .field-input:empty::before {
 	content: '\200B'; /* zero-width space */
 }
 
-/* Placeholder via CSS for contenteditable */
-.field-input:empty::before {
-	content: attr(data-placeholder);
-	color: var(--text-placeholder, var(--text-tertiary));
-	pointer-events: none;
-}
-
-/* Subtle focus background - Notion style */
+/* Focus background - visible but still subtle */
 .field-input:focus {
-	background: rgba(55, 53, 47, 0.024);
+	background: rgba(55, 53, 47, 0.06);
+	box-shadow: inset 0 0 0 1px rgba(55, 53, 47, 0.08);
 }
 
 .dark .field-input:focus {
-	background: rgba(255, 255, 255, 0.03);
+	background: rgba(255, 255, 255, 0.06);
+	box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 /* ========================================
@@ -696,28 +697,34 @@ button:disabled {
 }
 
 .save-btn {
-	padding: 8px 16px;
-	border-radius: 3px;
+	padding: 10px 20px;
+	border-radius: 4px;
 	font-size: 0.875rem;
 	font-weight: 500;
-	transition: all 0.1s;
-	background: rgba(55, 53, 47, 0.04);
+	transition: all 0.15s;
+	background: rgba(55, 53, 47, 0.08);
 	color: var(--text-tertiary);
 	cursor: not-allowed;
+	border: 1px solid var(--border);
 }
 
 .dark .save-btn {
-	background: rgba(255, 255, 255, 0.04);
+	background: rgba(255, 255, 255, 0.06);
 }
 
 .save-btn.ready {
 	background: rgb(35, 131, 226);
 	color: white;
 	cursor: pointer;
+	border-color: transparent;
 }
 
 .save-btn.ready:hover {
 	background: rgb(0, 117, 211);
+}
+
+.save-btn.ready:active {
+	transform: scale(0.98);
 }
 
 /* ========================================
@@ -1277,12 +1284,13 @@ button.recent-item:hover {
 	align-items: center;
 	justify-content: space-between;
 	width: 100%;
-	padding: 6px 10px;
+	padding: 8px 10px;
 	border-radius: 4px;
 	font-size: 0.875rem;
 	color: var(--text);
 	text-align: left;
 	transition: background 0.08s;
+	min-height: 36px;
 }
 
 .location-dropdown-item:hover {
@@ -1591,42 +1599,234 @@ button.recent-item:hover {
 }
 
 /* ========================================
-   MOBILE RESPONSIVE
+   BACKUP SECTION
    ======================================== */
 
+.backup-section {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.backup-description {
+	font-size: 0.875rem;
+	color: var(--text-secondary);
+	margin: 0;
+	line-height: 1.5;
+}
+
+.backup-actions {
+	display: flex;
+	gap: 8px;
+}
+
+.backup-btn {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 14px;
+	background: var(--accent);
+	border-radius: 4px;
+	color: white;
+	font-size: 0.875rem;
+	font-weight: 500;
+	transition: all 0.1s;
+}
+
+.backup-btn-secondary {
+	background: var(--surface-elevated);
+	color: var(--text);
+}
+
+.backup-btn-secondary:hover:not(:disabled) {
+	background: var(--border);
+}
+
+.backup-btn:hover:not(:disabled) {
+	background: rgb(0, 117, 211);
+}
+
+.backup-btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.backup-success {
+	font-size: 0.875rem;
+	color: var(--success);
+	margin: 0;
+}
+
+.backup-loading {
+	padding: 8px 0;
+}
+
+.backup-list {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+}
+
+.backup-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 8px 10px;
+	border-radius: 4px;
+	transition: background 0.1s;
+}
+
+.backup-item:hover {
+	background: var(--surface-elevated);
+}
+
+.backup-item:hover .backup-download-btn {
+	opacity: 1;
+}
+
+.backup-item-info {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+}
+
+.backup-item-date {
+	font-size: 0.875rem;
+	color: var(--text);
+}
+
+.backup-item-size {
+	font-size: 0.75rem;
+	color: var(--text-tertiary);
+}
+
+.backup-download-btn {
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 4px;
+	color: var(--text-tertiary);
+	flex-shrink: 0;
+	opacity: 0;
+	transition: all 0.1s;
+}
+
+.backup-download-btn:hover {
+	background: rgba(35, 131, 226, 0.1);
+	color: var(--accent);
+}
+
+/* ========================================
+   RESPONSIVE LAYOUT
+   Gradual adaptation across breakpoints
+   ======================================== */
+
+/* Tablet landscape / smaller desktop */
+@media (max-width: 1024px) {
+	.page-container {
+		padding: 0 48px;
+	}
+}
+
+/* Tablet portrait */
 @media (max-width: 860px) {
 	.page-container {
-		padding: 0 24px;
+		padding: 0 32px;
 	}
-	
+
 	.page-header {
 		padding: 48px 0 24px;
 		flex-direction: column;
 		align-items: flex-start;
 		gap: 12px;
 	}
-	
+
 	.block-controls {
 		display: none;
 	}
-	
+
+	.toggle-header {
+		padding: 8px 6px;
+		border-radius: 6px;
+	}
+
+	.toggle-header:active {
+		background: rgba(55, 53, 47, 0.06);
+	}
+
+	.dark .toggle-header:active {
+		background: rgba(255, 255, 255, 0.06);
+	}
+
 	.sidebar {
 		width: 100%;
 		max-width: 260px;
 	}
-	
+
 	.progress-pill {
 		bottom: 12px;
 		right: 12px;
 	}
-	
+
 	.theme-btn {
 		bottom: 12px;
 		left: 12px;
 	}
-	
+
 	.nav-btn.back {
 		bottom: 12px;
 		left: 12px;
+	}
+
+	.field-input {
+		min-height: 3em;
+		padding: 8px 10px;
+		font-size: 1rem;
+	}
+
+	.field-block {
+		margin-bottom: 8px;
+	}
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+	.page-container {
+		padding: 0 16px;
+	}
+
+	.page-header {
+		padding: 32px 0 16px;
+	}
+
+	.progress-pill {
+		bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+		right: calc(8px + env(safe-area-inset-right, 0px));
+		font-size: 0.6875rem;
+		padding: 4px 8px;
+	}
+
+	.theme-btn {
+		bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+		left: calc(8px + env(safe-area-inset-left, 0px));
+		width: 28px;
+		height: 28px;
+	}
+
+	.save-section {
+		margin-top: 32px;
+		padding-top: 16px;
+	}
+
+	.save-btn {
+		width: 100%;
+		padding: 12px 20px;
+	}
+
+	.location-dropdown-menu {
+		min-width: 160px;
 	}
 }

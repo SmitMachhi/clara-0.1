@@ -224,6 +224,32 @@ export function getAllEntries(): Entry[] {
 }
 
 /**
+ * Get all entries with decrypted data (for CSV export)
+ */
+export function getAllEntriesDecrypted(): EntryWithData[] {
+	const database = getDb();
+	const rows = database.prepare(`
+		SELECT e.id, e.date, e.timestamp, e.location_id, e.captured_lat, e.captured_lng, e.encrypted_data, e.created_at, l.name as location_name
+		FROM entries e
+		LEFT JOIN locations l ON e.location_id = l.id
+		ORDER BY e.date DESC
+	`).all() as (Entry & { encrypted_data: Buffer })[];
+
+	const key = getEncryptionKey();
+	return rows.map(row => ({
+		id: row.id,
+		date: row.date,
+		timestamp: row.timestamp,
+		location_id: row.location_id,
+		location_name: row.location_name,
+		captured_lat: row.captured_lat,
+		captured_lng: row.captured_lng,
+		created_at: row.created_at,
+		data: decryptJSON<JournalData>(row.encrypted_data, key)
+	}));
+}
+
+/**
  * Get an entry by date with decrypted data
  */
 export function getEntryByDate(date: string): EntryWithData | null {

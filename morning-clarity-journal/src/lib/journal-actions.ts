@@ -163,6 +163,12 @@ export async function deleteLocation(id: number): Promise<boolean> {
 	return res.ok;
 }
 
+export async function fetchBackups(): Promise<{ filename: string; size: number; created: string }[]> {
+	const res = await fetch('/api/backup?action=list');
+	const data = await res.json();
+	return data.success ? data.backups : [];
+}
+
 export async function requestBackup(): Promise<{ ok: boolean; error?: string; message?: string }> {
 	const res = await fetch('/api/backup', {
 		method: 'POST',

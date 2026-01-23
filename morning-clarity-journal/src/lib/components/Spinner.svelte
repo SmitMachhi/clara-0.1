@@ -21,6 +21,7 @@
 <style>
 	.spinner {
 		border: 2px solid var(--border);
+		border-top-color: var(--text-secondary);
 		border-radius: 50%;
 		animation: spin 0.8s linear infinite;
 	}
