@@ -1,4 +1,3 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { deleteLocation, getLocationById } from '$lib/db.js';
 import { validateId } from '$lib/validation.js';

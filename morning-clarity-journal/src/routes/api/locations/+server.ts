@@ -1,4 +1,3 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getLocations, addLocation, locationNameExists } from '$lib/db.js';
 import { validateCoordinates, validateLocationName } from '$lib/validation.js';
@@ -6,7 +5,7 @@ import { parseJsonBody, successResponse, errorResponse } from '$lib/api-helpers.
 
 export const GET: RequestHandler = async () => {
 	const locations = getLocations();
-	return successResponse(locations);
+	return successResponse({ locations });
 };
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -37,7 +36,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	try {
-		const id = addLocation(name.trim(), lat, lng, address);
+		const id = addLocation(name.trim(), lat, lng, address || undefined);
 		return successResponse({ id, name: name.trim(), lat, lng, address });
 	} catch (error) {
 		return errorResponse('Failed to add location');

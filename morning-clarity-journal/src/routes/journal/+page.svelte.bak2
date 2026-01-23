@@ -9,9 +9,12 @@
 	import { journalTemplate, getEmptyJournalData } from '$lib/template.js';
 	import { formatDateTime, formatDateISO, isPastCutoff, extractTimeFromTimestamp, isDateInPast, getYearDates, isToday, getDateTimeParts, toggleSet } from '$lib/utils.js';
 	import type { Location, Entry } from '$lib/db.js';
-	import { GPS, TIME } from '$lib/constants.js';
-	import { handleGeolocationError, formatCoordinate, findMatchingPreset } from '$lib/location-utils.js';
+	import { GPS, TIME, DISPLAY } from '$lib/constants.js';
+	import { handleGeolocationError, formatCoordinate } from '$lib/location-utils.js';
 	import { calculateStats, getRecentEntries } from '$lib/stats.js';
+	import { useGps } from '$lib/composables/useGps.js';
+	import { useLocationManager } from '$lib/composables/useLocationManager.js';
+	import { useBackup } from '$lib/composables/useBackup.js';
 	import Icon from '$lib/components/Icons.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -20,10 +23,16 @@
 	let formData = $state(getEmptyJournalData());
 	let locations = $state<Location[]>([]);
 	let selectedLocationId = $state<number | null>(null);
-	let capturedLat = $state<number | null>(null);
-	let capturedLng = $state<number | null>(null);
-	let isCapturingGps = $state(false);
-	let gpsError = $state('');
+	const gps = useGps();
+	const locationManager = useLocationManager();
+	const backup = useBackup();
+
+	async function handleGpsCapture() {
+		const result = await gps.captureCurrentLocation(locations);
+		if (result && result.matchedLocationId !== null) {
+			selectedLocationId = result.matchedLocationId;
+		}
+	}
 	let entries = $state<Entry[]>([]);
 	let entryDates = $state<string[]>([]);
 	let isSaving = $state(false);
@@ -32,40 +41,35 @@
 	let hasEntryToday = $state(false);
 	let currentTimestamp = $state('');
 	let dateParts = $state(getDateTimeParts(new Date()));
-	
+
 	// Toggle state for each question section
 	let expandedSections = $state<Set<string>>(new Set());
 
-	// Initialize first section as expanded
+	// Initialize all sections as expanded
 	$effect(() => {
-		if (expandedSections.size === 0 && journalTemplate.length > 0) {
-			expandedSections = new Set([journalTemplate[0].id]);
+		if (expandedSections.size === 0) {
+			const initial = new Set<string>();
+			journalTemplate.forEach((q, i) => {
+				if (i === 0) {
+					initial.add(q.id); // Only first section expanded initially
+				}
+			});
+			expandedSections = initial;
 		}
 	});
-	
+
 	// Sidebar state
 	let sidebarOpen = $state(false);
-	
+
 	// Settings popover state
 	let settingsOpen = $state(false);
-	
-	// Location preset form state
-	let newLocationName = $state('');
-	let newLocationLat = $state('');
-	let newLocationLng = $state('');
-	let newLocationAddress = $state('');
-	let isGettingLocation = $state(false);
-	let locationError = $state('');
-	let isAddingLocation = $state(false);
-	let isDeletingLocation = $state<number | null>(null); // Track which location is being deleted
-	let showManualEntry = $state(false);
-	let isLoadingData = $state(true); // Track initial data loading
-	
-	// Backup state
-	let isCreatingBackup = $state(false);
-	let backupError = $state('');
-	let backupSuccess = $state('');
-	
+
+	// Location deletion tracking
+	let isDeletingLocation = $state<number | null>(null);
+
+	// Track initial data loading
+	let isLoadingData = $state(true);
+
 	// Theme state
 	let isDarkMode = $state(false);
 	
@@ -156,8 +160,8 @@
 				body: JSON.stringify({
 					locationId: selectedLocationId,
 					data: formData,
-					capturedLat: selectedLocationId ? null : capturedLat,
-					capturedLng: selectedLocationId ? null : capturedLng
+					capturedLat: selectedLocationId ? null : $gps.capturedLat,
+					capturedLng: selectedLocationId ? null : $gps.capturedLng
 				})
 			});
 			
@@ -174,50 +178,6 @@
 		}
 	}
 
-	function captureCurrentLocation() {
-		if (!navigator.geolocation) {
-			gpsError = 'Geolocation not supported';
-			return;
-		}
-		
-		isCapturingGps = true;
-		gpsError = '';
-		
-		navigator.geolocation.getCurrentPosition(
-			(position) => {
-				const lat = position.coords.latitude;
-				const lng = position.coords.longitude;
-
-				const matchingPresetId = findMatchingPreset(lat, lng, locations);
-				
-				if (matchingPresetId !== null) {
-					// Match found - use the preset instead of raw coordinates
-					selectedLocationId = matchingPresetId;
-					capturedLat = null;
-					capturedLng = null;
-				} else {
-					// No match - show raw coordinates
-					capturedLat = lat;
-					capturedLng = lng;
-					selectedLocationId = null;
-				}
-				
-				isCapturingGps = false;
-			},
-			(error) => {
-				isCapturingGps = false;
-				gpsError = handleGeolocationError(error);
-			},
-			GPS.DEFAULT_OPTIONS
-		);
-	}
-	
-	function clearCapturedLocation() {
-		capturedLat = null;
-		capturedLng = null;
-		gpsError = '';
-	}
-	
 	function toggleSection(questionId: string) {
 		expandedSections = toggleSet(expandedSections, questionId);
 	}
@@ -271,121 +231,41 @@
 			goto(`/entry/${today}`);
 		}
 	});
-	
-	// GPS and location management functions
-	function getCurrentLocationAndSave() {
-		if (!newLocationName.trim()) {
-			locationError = 'Enter a name first';
-			return;
-		}
-		
-		if (!navigator.geolocation) {
-			locationError = 'Geolocation is not supported by your browser';
-			return;
-		}
-		
-		isGettingLocation = true;
-		locationError = '';
-		
-		navigator.geolocation.getCurrentPosition(
-			async (position) => {
-				const lat = position.coords.latitude;
-				const lng = position.coords.longitude;
-				
-				// Auto-save the location
-				try {
-					const res = await fetch('/api/locations', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({
-							name: newLocationName.trim(),
-							lat,
-							lng,
-							address: null
-						})
-					});
-					
-					if (res.ok) {
-						await loadLocations();
-						newLocationName = '';
-						newLocationLat = '';
-						newLocationLng = '';
-						newLocationAddress = '';
-						showManualEntry = false;
-					} else {
-						const data = await res.json();
-						locationError = data.error || 'Failed to save';
-					}
-				} catch (err) {
-					locationError = 'Failed to save location';
-				}
-				
-				isGettingLocation = false;
-			},
-			(error) => {
-				isGettingLocation = false;
-				locationError = handleGeolocationError(error);
-			},
-			GPS.DEFAULT_OPTIONS
-		);
-	}
-	
-	async function addLocationPreset() {
-		if (!newLocationName.trim() || !newLocationLat || !newLocationLng) {
-			locationError = 'Name and coordinates are required';
-			return;
-		}
-		
-		const lat = parseFloat(newLocationLat);
-		const lng = parseFloat(newLocationLng);
-		
-		if (isNaN(lat) || isNaN(lng)) {
-			locationError = 'Invalid coordinates';
-			return;
-		}
-		
-		if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-			locationError = 'Coordinates out of range';
-			return;
-		}
-		
-		isAddingLocation = true;
-		locationError = '';
-		
-		try {
+
+	// Location management wrapper functions
+	async function handleGetCurrentLocationAndSave() {
+		await locationManager.getCurrentLocationAndSave(async (data) => {
 			const res = await fetch('/api/locations', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					name: newLocationName.trim(),
-					lat,
-					lng,
-					address: newLocationAddress.trim() || null
-				})
+				body: JSON.stringify(data)
 			});
-			
-			if (res.ok) {
-				// Reload locations and reset form
-				await loadLocations();
-				newLocationName = '';
-				newLocationLat = '';
-				newLocationLng = '';
-				newLocationAddress = '';
-				showManualEntry = false;
-			} else {
-				const data = await res.json();
-				locationError = data.error || 'Failed to add location';
+			if (!res.ok) {
+				const responseData = await res.json();
+				throw new Error(responseData.error || 'Failed to save');
 			}
-		} catch (err) {
-			locationError = 'Failed to add location';
-		} finally {
-			isAddingLocation = false;
-		}
+			await loadLocations();
+		});
 	}
-	
+
+	async function handleAddLocationPreset() {
+		await locationManager.addLocationManual(async (data) => {
+			const res = await fetch('/api/locations', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(data)
+			});
+			if (!res.ok) {
+				const responseData = await res.json();
+				throw new Error(responseData.error || 'Failed to add location');
+			}
+			await loadLocations();
+		});
+	}
+
 	async function deleteLocationPreset(id: number) {
 		if (isDeletingLocation !== null) return; // Prevent multiple simultaneous deletions
-		
+
 		isDeletingLocation = id;
 		try {
 			const res = await fetch(`/api/locations/${id}`, { method: 'DELETE' });
@@ -400,34 +280,6 @@
 			console.error('Failed to delete location', err);
 		} finally {
 			isDeletingLocation = null;
-		}
-	}
-	
-		async function createBackup() {
-		isCreatingBackup = true;
-		backupError = '';
-		backupSuccess = '';
-
-		try {
-			const res = await fetch('/api/backup', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' }
-			});
-
-			const data = await res.json();
-			if (data.success) {
-				backupSuccess = 'Backup created successfully';
-				// Clear success message after 3 seconds
-				setTimeout(() => {
-					backupSuccess = '';
-				}, TIME.SUCCESS_MESSAGE_DURATION_MS);
-			} else {
-				backupError = data.error || 'Failed to create backup';
-			}
-		} catch (err) {
-			backupError = 'Failed to create backup';
-		} finally {
-			isCreatingBackup = false;
 		}
 	}
 </script>
@@ -457,7 +309,7 @@
 				<!-- Notion-style page -->
 				<div class="page-container">
 					<!-- Floating header inside page -->
-					<div class="page-header">
+		<div class="page-header">
 						<div class="page-meta">
 							<span class="meta-time">{dateParts.time}</span>
 							<span class="meta-sep">·</span>
@@ -466,35 +318,34 @@
 							<span class="meta-year">{currentYear}</span>
 						</div>
 						<div class="page-actions">
-							{#if capturedLat !== null && capturedLng !== null}
+							{#if $gps.capturedLat !== null && $gps.capturedLng !== null}
 								<div class="captured-location">
-									<span class="captured-label">📍 {formatCoordinate(capturedLat)}, {formatCoordinate(capturedLng)}</span>
-									<button class="captured-clear" onclick={clearCapturedLocation} aria-label="Clear location">×</button>
+									<span class="captured-label">📍 {formatCoordinate($gps.capturedLat)}, {formatCoordinate($gps.capturedLng)}</span>
+									<button class="captured-clear" onclick={gps.clearCapturedLocation} aria-label="Clear location">×</button>
 								</div>
-						{:else}
+							{:else}
 							<Dropdown
 								items={locations.map(loc => ({ label: loc.name, value: loc.id.toString() }))}
 								placeholder="Add location"
 								selectedValue={selectedLocationId?.toString() || null}
 								onSelect={(value) => {
 									selectedLocationId = parseInt(value);
-									capturedLat = null;
-									capturedLng = null;
+									gps.clearCapturedLocation();
 								}}
 								onClear={() => {
 									selectedLocationId = null;
 								}}
 							/>
 						{/if}
-							
-							<button 
+
+							<button
 								class="gps-capture-btn"
-								onclick={captureCurrentLocation}
-								disabled={isCapturingGps}
-								title={gpsError || 'Capture current location'}
+								onclick={handleGpsCapture}
+								disabled={$gps.isCapturing}
+								title={$gps.error || 'Capture current location'}
 							aria-label="Capture current location"
 						>
-							{#if isCapturingGps}
+							{#if $gps.isCapturing}
 								<Spinner variant="gps" size="small" />
 							{:else}
 								📍
@@ -515,7 +366,7 @@
 								</div>
 								
 								<!-- Toggle header -->
-								<button 
+								<button
 									class="toggle-header"
 									onclick={() => toggleSection(question.id)}
 									type="button"
@@ -530,7 +381,7 @@
 										{question.question}
 									</span>
 								</button>
-								
+
 								<!-- Toggle content with slide animation -->
 								{#if expandedSections.has(question.id)}
 									<div class="toggle-content" transition:slide={{ duration: TIME.ANIMATION_DURATION_MS }}>
@@ -735,16 +586,16 @@
 				type="text"
 				class="add-location-input"
 				placeholder="New location name..."
-				bind:value={newLocationName}
+				bind:value={$locationManager.newLocationName}
 			/>
 			<button
 				type="button"
 				class="add-location-gps-btn"
-				onclick={getCurrentLocationAndSave}
-				disabled={isGettingLocation || !newLocationName.trim()}
+				onclick={handleGetCurrentLocationAndSave}
+				disabled={$locationManager.isGettingLocation || !$locationManager.newLocationName.trim()}
 			title="Save with current GPS location"
 			>
-				{#if isGettingLocation}
+				{#if $locationManager.isGettingLocation}
 					<Spinner variant="text" size="small" />
 				{:else}
 					<Icon name="location" size={16} />
@@ -752,49 +603,49 @@
 			</button>
 		</div>
 
-		{#if locationError}
-			<p class="location-error">{locationError}</p>
+		{#if $locationManager.error}
+			<p class="location-error">{$locationManager.error}</p>
 		{/if}
 
 		<!-- Manual Entry Toggle -->
 		<button
 			type="button"
 			class="manual-entry-toggle"
-			onclick={() => showManualEntry = !showManualEntry}
+			onclick={() => $locationManager.showManualEntry = !$locationManager.showManualEntry}
 		>
-			{showManualEntry ? '− Hide manual entry' : '+ Enter coordinates manually'}
+			{$locationManager.showManualEntry ? '− Hide manual entry' : '+ Enter coordinates manually'}
 		</button>
 
 		<!-- Manual Entry Form (collapsed by default) -->
-		{#if showManualEntry}
+		{#if $locationManager.showManualEntry}
 			<div class="manual-entry-form">
 				<div class="manual-entry-row">
 					<input
 						type="text"
 						class="manual-input"
 						placeholder="Latitude"
-						bind:value={newLocationLat}
+						bind:value={$locationManager.newLocationLat}
 					/>
 					<input
 						type="text"
 						class="manual-input"
 						placeholder="Longitude"
-						bind:value={newLocationLng}
+						bind:value={$locationManager.newLocationLng}
 					/>
 				</div>
 				<input
 					type="text"
 					class="manual-input full"
 					placeholder="Address (optional)"
-					bind:value={newLocationAddress}
+					bind:value={$locationManager.newLocationAddress}
 				/>
 				<button
 					type="button"
 					class="manual-save-btn"
-					onclick={addLocationPreset}
-					disabled={isAddingLocation || !newLocationName.trim() || !newLocationLat || !newLocationLng}
+					onclick={handleAddLocationPreset}
+					disabled={$locationManager.isAddingLocation || !$locationManager.newLocationName.trim() || !$locationManager.newLocationLat || !$locationManager.newLocationLng}
 				>
-					{isAddingLocation ? 'Saving...' : 'Save'}
+					{$locationManager.isAddingLocation ? 'Saving...' : 'Save'}
 				</button>
 			</div>
 		{/if}
@@ -808,10 +659,10 @@
 			<button
 				type="button"
 				class="backup-btn"
-				onclick={createBackup}
-				disabled={isCreatingBackup}
+				onclick={backup.createBackup}
+				disabled={$backup.isCreating}
 				>
-				{#if isCreatingBackup}
+				{#if $backup.isCreating}
 					<Spinner variant="text" size="small" />
 					<span>Creating backup...</span>
 				{:else}
@@ -819,11 +670,11 @@
 					<span>Create Backup</span>
 				{/if}
 			</button>
-			{#if backupError}
-				<p class="location-error">{backupError}</p>
+			{#if $backup.error}
+				<p class="location-error">{$backup.error}</p>
 			{/if}
-			{#if backupSuccess}
-				<p class="backup-success">{backupSuccess}</p>
+			{#if $backup.success}
+				<p class="backup-success">{$backup.success}</p>
 			{/if}
 		</div>
 	</Modal>

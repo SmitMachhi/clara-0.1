@@ -1,4 +1,3 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { saveEntry, getAllEntries, getEntryDates, type JournalData } from '$lib/db.js';
 import { formatDateISO, formatDateTime } from '$lib/utils.js';

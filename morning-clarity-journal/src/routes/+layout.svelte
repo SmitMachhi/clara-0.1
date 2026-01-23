@@ -1,9 +1,12 @@
+<!-- purpose: Root layout with theme management -->
+<!-- context: Wraps all pages, provides theme toggle -->
+<!-- location: src/routes/+layout.svelte -->
+
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import type { Snippet } from 'svelte';
-	import Icon from '$lib/components/Icons.svelte';
 	
 	let { children }: { children: Snippet } = $props();
 	
@@ -38,12 +41,7 @@
 			updateTheme();
 		}
 	});
-	
-	// Hide theme toggle on login page
-	$effect(() => {
-		// Check current route
-	});
-</script>
+ </script>
 
 <svelte:head>
 	<link rel="preconnect" href="https://fonts.googleapis.com">

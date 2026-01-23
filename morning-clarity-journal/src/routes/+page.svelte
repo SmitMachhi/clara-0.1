@@ -1,27 +1,30 @@
+<!-- purpose: Login page with password authentication -->
+<!-- context: Entry point for authenticated users -->
+<!-- location: src/routes/+page.svelte -->
+
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { TIME } from '$lib/constants.js';
-	import Icon from '$lib/components/Icons.svelte';
 
 	let password = $state('');
 	let error = $state('');
 	let isShaking = $state(false);
 	let isLoading = $state(false);
-	
+
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
 		if (isLoading) return;
-		
+
 		isLoading = true;
 		error = '';
-		
+
 		try {
 			const response = await fetch('/api/auth', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ password })
 			});
-			
+
 			if (response.ok) {
 				goto('/journal');
 			} else {
@@ -38,6 +41,14 @@
 			isLoading = false;
 		}
 	}
+
+	function handleKeypress(e: KeyboardEvent) {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			const formEvent = new Event('submit', { bubbles: true, cancelable: true });
+			(e.target as HTMLElement).closest('form')?.dispatchEvent(formEvent);
+		}
+	}
 </script>
 
 <div class="min-h-screen flex items-center justify-center bg-[var(--bg)] p-[var(--space-lg)]">
@@ -48,13 +59,14 @@
 		</h1>
 		
 		<form onsubmit={handleSubmit}>
-			<div class={isShaking ? 'shake' : ''}>
+ <div class={isShaking ? 'shake' : ''}>
 				<input
 					type="password"
 					bind:value={password}
 					placeholder="Password"
 					class="w-full text-center"
 					autofocus
+					onkeydown={handleKeypress}
 				/>
 			</div>
 			

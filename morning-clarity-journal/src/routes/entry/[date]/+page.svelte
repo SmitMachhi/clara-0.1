@@ -1,10 +1,13 @@
+<!-- purpose: View saved journal entry by date -->
+<!-- context: Read-only display of completed entries -->
+<!-- location: src/routes/entry/[date]/+page.svelte -->
+
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { slide } from 'svelte/transition';
 import { journalTemplate, getCurrentFieldIds } from '$lib/template.js';
 import type { EntryWithData } from '$lib/db.js';
-import { DISPLAY } from '$lib/constants.js';
 import { formatCoordinate } from '$lib/location-utils.js';
 import { getLegacyFieldLabel } from '$lib/legacy-field-labels.js';
 import Icon from '$lib/components/Icons.svelte';
@@ -16,7 +19,9 @@ import Spinner from '$lib/components/Spinner.svelte';
 	let expandedQuestions = $state<Set<string>>(new Set());
 	
 	$effect(() => {
-		loadEntry($page.params.date);
+		if ($page.params.date) {
+			loadEntry($page.params.date);
+		}
 	});
 	
 	async function loadEntry(date: string) {
@@ -27,15 +32,8 @@ import Spinner from '$lib/components/Spinner.svelte';
 			const res = await fetch(`/api/entries/${date}`);
 			if (res.ok) {
 				entry = await res.json();
-				// Debug: log entry to see location data
+				// Auto-expand all questions that have content
 				if (entry) {
-					console.log('Entry loaded:', { 
-						location_id: entry.location_id, 
-						location_name: entry.location_name,
-						captured_lat: entry.captured_lat,
-						captured_lng: entry.captured_lng
-					});
-					// Auto-expand all questions that have content
 					const questionsWithContent = new Set<string>();
 					for (const question of journalTemplate) {
 						for (const field of question.fields) {

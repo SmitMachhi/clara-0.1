@@ -17,7 +17,7 @@ export const POST: RequestHandler = async () => {
 	} else {
 		// Create "Home" location if it doesn't exist (using default coordinates)
 		if (!locationNameExists('Home')) {
-			homeLocationId = addLocation('Home', 37.7749, -122.4194, null); // Default SF coordinates, can be updated
+			homeLocationId = addLocation('Home', 37.7749, -122.4194, undefined); // Default SF coordinates, can be updated
 		} else {
 			// If it exists but wasn't found (case sensitivity issue), find it
 			const allLocations = getLocations();
@@ -35,14 +35,14 @@ export const POST: RequestHandler = async () => {
 	const testData: JournalData = {
 		whoAmIDoingThisFor: 'For my future self. For the person I want to become - someone who shows up consistently, even when it\'s hard. For my family who believes in me.',
 		whatMakingAnxious: 'The big presentation next week. I keep thinking about all the ways it could go wrong.',
-		whatAvoiding: 'Actually sitting down and preparing the slides. I keep finding other "urgent" tasks instead.',
+		whatAvoiding: 'Actually sitting down and preparing for slides. I keep finding other "urgent" tasks instead.',
 		fearUnderneath: 'Fear of being seen as incompetent. Fear that people will realize I don\'t belong here.',
 		evidenceFearNotTrue: 'I\'ve done presentations before that went well. My manager specifically asked me to present because they trust my knowledge. Last quarter\'s review was positive.',
 		upsideIfAct: 'I could actually nail this presentation and build more confidence. It could lead to new opportunities. I\'d feel proud of myself for facing the fear.',
 		consumeInsteadProduce: 'Scrolling Twitter for "inspiration", watching YouTube tutorials without actually applying them, checking email obsessively.',
 		exactDistraction: 'My phone. Specifically Reddit and Twitter when I feel stuck or uncomfortable.',
 		wasteToday: 'Spending all morning in shallow work - emails, Slack, meetings that should have been emails. Not making progress on what actually matters.',
-		commitment1: 'Two hours of deep work on the presentation before checking any messages',
+		commitment1: 'Two hours of deep work on presentation before checking any messages',
 		commitment2: 'Phone in another room until lunch',
 		commitment3: '30 minute walk outside to clear my head',
 		// Legacy fields (empty)

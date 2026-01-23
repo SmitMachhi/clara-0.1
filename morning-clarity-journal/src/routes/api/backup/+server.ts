@@ -1,4 +1,3 @@
-import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createBackup, getBackups } from '$lib/db.js';
 import { readFileSync } from 'fs';

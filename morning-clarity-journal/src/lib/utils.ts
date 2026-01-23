@@ -1,6 +1,20 @@
 import { TIME } from './constants.js';
 
 /**
+ * Toggle an item in a Set (add if not present, remove if present)
+ * Returns a new Set for immutability
+ */
+export function toggleSet(set: Set<string>, item: string): Set<string> {
+	const newSet = new Set(set);
+	if (newSet.has(item)) {
+		newSet.delete(item);
+	} else {
+		newSet.add(item);
+	}
+	return newSet;
+}
+
+/**
  * Format date to display format: "06:30:45 12th October, 2026"
  */
 export function formatDateTime(date: Date): string {
