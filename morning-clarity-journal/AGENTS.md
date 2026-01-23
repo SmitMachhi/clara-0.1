@@ -9,7 +9,6 @@
 - **one responsibility per file**: split ui into components/subcomponents
 - **keep SvelteKit views dumb**: UI should never know your business logic. fetch from backend, render UI, nothing else
 - **no cross-pollution**: don't put big computations or business rules inside .svelte files. keep them in TS utilities or backend
-- **acceptable in .svelte**: thin API-call wrappers (fetch to endpoints), browser API interactions (geolocation, localStorage), and component state management. actual business logic (validation, encryption, database ops, coordinate math) must stay in TS utilities or server routes
 
 ## import & path rules
 

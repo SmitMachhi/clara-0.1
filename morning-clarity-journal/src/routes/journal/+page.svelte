@@ -7,12 +7,12 @@
 	import { goto } from '$app/navigation';
 	import { slide } from 'svelte/transition';
 	import { journalTemplate, getEmptyJournalData } from '$lib/template.js';
-	import { formatDateTime, formatDateISO, isPastCutoff, extractTimeFromTimestamp, isDateInPast, getYearDates, isToday, getDateTimeParts, toggleSet } from '$lib/utils.js';
+	import { formatDateISO, isPastCutoff, extractTimeFromTimestamp, isDateInPast, getYearDates, isToday, getDateTimeParts, toggleSet } from '$lib/utils.js';
 	import type { Location, Entry } from '$lib/db.js';
-	import { GPS, TIME } from '$lib/constants.js';
-	import { handleGeolocationError, formatCoordinate, findMatchingPreset } from '$lib/location-utils.js';
-	import { validateCoordinates } from '$lib/validation.js';
+	import { TIME } from '$lib/constants.js';
+	import { formatCoordinate } from '$lib/location-utils.js';
 	import { calculateStats, getRecentEntries } from '$lib/stats.js';
+	import { fetchLocations, fetchEntries, submitEntry, captureGps, captureAndSaveLocation, addLocation, deleteLocation, requestBackup } from '$lib/journal-actions.js';
 	import Icon from '$lib/components/Icons.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -31,9 +31,8 @@
 	let saveError = $state('');
 	let isPastTime = $state(false);
 	let hasEntryToday = $state(false);
-	let currentTimestamp = $state('');
 	let dateParts = $state(getDateTimeParts(new Date()));
-	
+
 	// Toggle state for each question section
 	let expandedSections = $state<Set<string>>(new Set());
 
@@ -43,13 +42,13 @@
 			expandedSections = new Set([journalTemplate[0].id]);
 		}
 	});
-	
+
 	// Sidebar state
 	let sidebarOpen = $state(false);
-	
+
 	// Settings popover state
 	let settingsOpen = $state(false);
-	
+
 	// Location preset form state
 	let newLocationName = $state('');
 	let newLocationLat = $state('');
@@ -58,85 +57,78 @@
 	let isGettingLocation = $state(false);
 	let locationError = $state('');
 	let isAddingLocation = $state(false);
-	let isDeletingLocation = $state<number | null>(null); // Track which location is being deleted
+	let isDeletingLocation = $state<number | null>(null);
 	let showManualEntry = $state(false);
-	let isLoadingData = $state(true); // Track initial data loading
-	
+	let isLoadingData = $state(true);
+
 	// Backup state
 	let isCreatingBackup = $state(false);
 	let backupError = $state('');
 	let backupSuccess = $state('');
-	
+
 	// Theme state
 	let isDarkMode = $state(false);
-	
+
 	const today = formatDateISO(new Date());
 	const currentYear = new Date().getFullYear();
 	const yearDates = getYearDates(currentYear);
-	
+
 	// Calculate completion status
 	let completedFields = $derived(() => {
 		const allFieldIds = journalTemplate.flatMap(q => q.fields.map(f => f.id));
 		return allFieldIds.filter(id => formData[id]?.trim().length > 0).length;
 	});
-	
+
 	let totalFields = $derived(() => {
 		return journalTemplate.flatMap(q => q.fields.map(f => f.id)).length;
 	});
-	
+
 	let isComplete = $derived(() => {
 		return completedFields() === totalFields();
 	});
-	
+
 	onMount(() => {
-		// Apply ritual theme
 		document.documentElement.classList.add('ritual');
-		
+
 		isPastTime = isPastCutoff();
-		currentTimestamp = formatDateTime(new Date());
-		
+
 		const interval = setInterval(() => {
 			const now = new Date();
-			currentTimestamp = formatDateTime(now);
 			dateParts = getDateTimeParts(now);
 			isPastTime = isPastCutoff();
 		}, TIME.CLOCK_UPDATE_INTERVAL_MS);
-		
-		// Load data
+
 		loadAllData().then(() => {
 			hasEntryToday = entryDates.includes(today);
 		}).catch((err) => {
 			console.error('Failed to load data', err);
 		});
-		
+
 		return () => {
 			clearInterval(interval);
 			document.documentElement.classList.remove('ritual');
 			document.documentElement.classList.remove('dark');
 		};
 	});
-	
+
 	async function loadLocations() {
 		try {
-			const res = await fetch('/api/locations');
-			const data = await res.json();
-			locations = data.locations || [];
+			locations = await fetchLocations();
 		} catch (err) {
 			console.error('Failed to load locations', err);
 		}
 	}
-	
+
 	async function loadEntries() {
 		try {
-			const res = await fetch('/api/entries');
-			const data = await res.json();
+			const data = await fetchEntries();
 			entries = data.entries;
 			entryDates = data.entryDates;
 		} catch (err) {
 			console.error('Failed to load entries', err);
 		}
 	}
-	
+
 	async function loadAllData() {
 		isLoadingData = true;
 		try {
@@ -145,30 +137,19 @@
 			isLoadingData = false;
 		}
 	}
-	
+
 	async function handleSubmit() {
 		if (isSaving || isPastTime || hasEntryToday || !isComplete()) return;
-		
+
 		isSaving = true;
 		saveError = '';
-		
+
 		try {
-			const res = await fetch('/api/entries', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					locationId: selectedLocationId,
-					data: formData,
-					capturedLat: selectedLocationId ? null : capturedLat,
-					capturedLng: selectedLocationId ? null : capturedLng
-				})
-			});
-			
-			if (res.ok) {
+			const result = await submitEntry(formData, selectedLocationId, capturedLat, capturedLng);
+			if (result.ok) {
 				goto(`/entry/${today}`);
 			} else {
-				const data = await res.json();
-				saveError = data.error || 'Failed to save entry';
+				saveError = result.error || 'Failed to save entry';
 			}
 		} catch (err) {
 			saveError = 'Failed to save entry';
@@ -178,53 +159,40 @@
 	}
 
 	function captureCurrentLocation() {
-		if (!navigator.geolocation) {
-			gpsError = 'Geolocation not supported';
-			return;
-		}
-		
 		isCapturingGps = true;
 		gpsError = '';
-		
-		navigator.geolocation.getCurrentPosition(
-			(position) => {
-				const lat = position.coords.latitude;
-				const lng = position.coords.longitude;
 
-				const matchingPresetId = findMatchingPreset(lat, lng, locations);
-				
-				if (matchingPresetId !== null) {
-					// Match found - use the preset instead of raw coordinates
-					selectedLocationId = matchingPresetId;
+		captureGps(
+			locations,
+			(result) => {
+				if (result.matchedPresetId !== null) {
+					selectedLocationId = result.matchedPresetId;
 					capturedLat = null;
 					capturedLng = null;
 				} else {
-					// No match - show raw coordinates
-					capturedLat = lat;
-					capturedLng = lng;
+					capturedLat = result.lat;
+					capturedLng = result.lng;
 					selectedLocationId = null;
 				}
-				
 				isCapturingGps = false;
 			},
 			(error) => {
 				isCapturingGps = false;
-				gpsError = handleGeolocationError(error);
-			},
-			GPS.DEFAULT_OPTIONS
+				gpsError = error;
+			}
 		);
 	}
-	
+
 	function clearCapturedLocation() {
 		capturedLat = null;
 		capturedLng = null;
 		gpsError = '';
 	}
-	
+
 	function toggleSection(questionId: string) {
 		expandedSections = toggleSet(expandedSections, questionId);
 	}
-	
+
 	function toggleTheme() {
 		isDarkMode = !isDarkMode;
 		if (isDarkMode) {
@@ -233,21 +201,18 @@
 			document.documentElement.classList.remove('dark');
 		}
 	}
-	
-	// Handle contenteditable input
+
 	function handleInput(event: Event, fieldId: string) {
 		const target = event.target as HTMLElement;
 		formData[fieldId] = target.textContent || '';
 	}
-	
-	// Handle paste - strip formatting
+
 	function handlePaste(event: ClipboardEvent) {
 		event.preventDefault();
 		const text = event.clipboardData?.getData('text/plain') || '';
 		document.execCommand('insertText', false, text);
 	}
-	
-	// Handle Tab navigation - auto-expand next section when tabbing into it
+
 	async function handleFieldFocus(questionId: string) {
 		if (!expandedSections.has(questionId)) {
 			const newSet = new Set(expandedSections);
@@ -256,15 +221,14 @@
 			await tick();
 		}
 	}
-	
-	// Sidebar helpers
+
 	function getDayStatus(dateStr: string): 'completed' | 'missed' | 'future' | 'today' {
 		if (isToday(dateStr)) return 'today';
 		if (entryDates.includes(dateStr)) return 'completed';
 		if (isDateInPast(dateStr)) return 'missed';
 		return 'future';
 	}
-	
+
 	function viewEntry(date: string) {
 		goto(`/entry/${date}`);
 	}
@@ -274,102 +238,36 @@
 			goto(`/entry/${today}`);
 		}
 	});
-	
-	// GPS and location management functions
+
 	function getCurrentLocationAndSave() {
-		if (!newLocationName.trim()) {
-			locationError = 'Enter a name first';
-			return;
-		}
-		
-		if (!navigator.geolocation) {
-			locationError = 'Geolocation is not supported by your browser';
-			return;
-		}
-		
 		isGettingLocation = true;
 		locationError = '';
-		
-		navigator.geolocation.getCurrentPosition(
-			async (position) => {
-				const lat = position.coords.latitude;
-				const lng = position.coords.longitude;
-				
-				// Auto-save the location
-				try {
-					const res = await fetch('/api/locations', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({
-							name: newLocationName.trim(),
-							lat,
-							lng,
-							address: null
-						})
-					});
-					
-					if (res.ok) {
-						await loadLocations();
-						newLocationName = '';
-						newLocationLat = '';
-						newLocationLng = '';
-						newLocationAddress = '';
-						showManualEntry = false;
-					} else {
-						const data = await res.json();
-						locationError = data.error || 'Failed to save';
-					}
-				} catch (err) {
-					locationError = 'Failed to save location';
-				}
-				
+
+		captureAndSaveLocation(
+			newLocationName,
+			async () => {
+				await loadLocations();
+				newLocationName = '';
+				newLocationLat = '';
+				newLocationLng = '';
+				newLocationAddress = '';
+				showManualEntry = false;
 				isGettingLocation = false;
 			},
 			(error) => {
+				locationError = error;
 				isGettingLocation = false;
-				locationError = handleGeolocationError(error);
-			},
-			GPS.DEFAULT_OPTIONS
+			}
 		);
 	}
-	
-	async function addLocationPreset() {
-		if (!newLocationName.trim() || !newLocationLat || !newLocationLng) {
-			locationError = 'Name and coordinates are required';
-			return;
-		}
-		
-		const lat = parseFloat(newLocationLat);
-		const lng = parseFloat(newLocationLng);
-		
-		if (isNaN(lat) || isNaN(lng)) {
-			locationError = 'Invalid coordinates';
-			return;
-		}
 
-		const coordValidation = validateCoordinates(lat, lng);
-		if (!coordValidation.valid) {
-			locationError = coordValidation.error!;
-			return;
-		}
-		
+	async function addLocationPreset() {
 		isAddingLocation = true;
 		locationError = '';
-		
+
 		try {
-			const res = await fetch('/api/locations', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					name: newLocationName.trim(),
-					lat,
-					lng,
-					address: newLocationAddress.trim() || null
-				})
-			});
-			
-			if (res.ok) {
-				// Reload locations and reset form
+			const result = await addLocation(newLocationName, newLocationLat, newLocationLng, newLocationAddress);
+			if (result.ok) {
 				await loadLocations();
 				newLocationName = '';
 				newLocationLat = '';
@@ -377,8 +275,7 @@
 				newLocationAddress = '';
 				showManualEntry = false;
 			} else {
-				const data = await res.json();
-				locationError = data.error || 'Failed to add location';
+				locationError = result.error || 'Failed to add location';
 			}
 		} catch (err) {
 			locationError = 'Failed to add location';
@@ -386,16 +283,15 @@
 			isAddingLocation = false;
 		}
 	}
-	
+
 	async function deleteLocationPreset(id: number) {
-		if (isDeletingLocation !== null) return; // Prevent multiple simultaneous deletions
-		
+		if (isDeletingLocation !== null) return;
+
 		isDeletingLocation = id;
 		try {
-			const res = await fetch(`/api/locations/${id}`, { method: 'DELETE' });
-			if (res.ok) {
+			const ok = await deleteLocation(id);
+			if (ok) {
 				await loadLocations();
-				// Clear selection if deleted location was selected
 				if (selectedLocationId === id) {
 					selectedLocationId = null;
 				}
@@ -406,27 +302,21 @@
 			isDeletingLocation = null;
 		}
 	}
-	
-		async function createBackup() {
+
+	async function createBackup() {
 		isCreatingBackup = true;
 		backupError = '';
 		backupSuccess = '';
 
 		try {
-			const res = await fetch('/api/backup', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' }
-			});
-
-			const data = await res.json();
-			if (data.success) {
-				backupSuccess = 'Backup created successfully';
-				// Clear success message after 3 seconds
+			const result = await requestBackup();
+			if (result.ok) {
+				backupSuccess = result.message || 'Backup created successfully';
 				setTimeout(() => {
 					backupSuccess = '';
 				}, TIME.SUCCESS_MESSAGE_DURATION_MS);
 			} else {
-				backupError = data.error || 'Failed to create backup';
+				backupError = result.error || 'Failed to create backup';
 			}
 		} catch (err) {
 			backupError = 'Failed to create backup';
