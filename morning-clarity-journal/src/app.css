@@ -1490,6 +1490,81 @@ button.recent-item:hover {
 	padding: 16px;
 }
 
+.preset-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+
+.preset-dropdown {
+	flex: 1;
+}
+
+.preset-actions-row {
+	display: flex;
+	gap: 10px;
+	align-items: center;
+	margin-bottom: 10px;
+}
+
+.preset-name-input {
+	flex: 1;
+	padding: 8px 10px;
+	background: transparent;
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	font-size: 0.875rem;
+	color: var(--text);
+}
+
+.preset-name-input:focus {
+	border-color: var(--accent);
+	outline: none;
+}
+
+.preset-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.preset-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 8px 10px;
+	border-radius: 6px;
+	background: var(--surface);
+}
+
+.preset-name {
+	font-size: 0.875rem;
+	color: var(--text);
+}
+
+.preset-item-actions {
+	display: flex;
+	gap: 6px;
+}
+
+.preset-rename-input {
+	flex: 1;
+	padding: 6px 8px;
+	background: transparent;
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	font-size: 0.875rem;
+	color: var(--text);
+}
+
+.preset-rename-input:focus {
+	border-color: var(--accent);
+	outline: none;
+}
+
 .settings-empty {
 	margin: 0;
 	font-size: 0.875rem;

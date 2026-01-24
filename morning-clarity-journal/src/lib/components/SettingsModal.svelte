@@ -11,6 +11,7 @@
 	import Icon from '$lib/components/Icons.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Modal from '$lib/components/Modal.svelte';
+	import Dropdown from '$lib/components/Dropdown.svelte';
 
 	let {
 		open,
@@ -48,6 +49,14 @@
 	let templateSuccess = $state('');
 	let hasLoadedTemplate = $state(false);
 	let activeTab = $state<'locations' | 'database' | 'template'>('locations');
+	let templatePresets = $state<{ id: number; name: string; created_at: string }[]>([]);
+	let selectedPresetId = $state<number | null>(null);
+	let presetName = $state('');
+	let presetError = $state('');
+	let presetSuccess = $state('');
+	let renamingPresetId = $state<number | null>(null);
+	let renamingPresetName = $state('');
+	const PRESET_LIMIT = 5;
 
 	const TEMPLATE_EXAMPLE = [
 		'<hp>Who am I doing this for?',
@@ -189,6 +198,8 @@
 		templateLoadError = '';
 		templateValidationErrors = [];
 		templateSuccess = '';
+		presetError = '';
+		presetSuccess = '';
 
 		try {
 			const response = await apiFetch('/api/template');
@@ -202,6 +213,10 @@
 				return;
 			}
 			templateDraft = data.sourceText;
+			templatePresets = Array.isArray(data.presets) ? data.presets : [];
+			if (templatePresets.length > 0 && !selectedPresetId) {
+				selectedPresetId = templatePresets[0].id;
+			}
 			hasLoadedTemplate = true;
 		} catch (err) {
 			templateLoadError = 'Failed to load template';
@@ -216,6 +231,7 @@
 		templateLoadError = '';
 		templateValidationErrors = [];
 		templateSuccess = '';
+		presetError = '';
 
 		try {
 			const response = await apiFetch('/api/template', {
@@ -231,6 +247,7 @@
 					console.error('Failed to clear draft', err);
 				}
 				await onTemplateChanged();
+				await loadTemplateSource();
 				templateSuccess = 'Template saved.';
 				return;
 			}
@@ -243,6 +260,150 @@
 			}
 		} catch (err) {
 			templateLoadError = 'Failed to save template';
+		} finally {
+			isSavingTemplate = false;
+		}
+	}
+
+	async function savePreset() {
+		if (isSavingTemplate) return;
+		presetError = '';
+		presetSuccess = '';
+		const trimmed = presetName.trim();
+		if (!trimmed) {
+			presetError = 'Preset name is required';
+			return;
+		}
+		if (templatePresets.length >= PRESET_LIMIT) {
+			presetError = 'Preset limit reached';
+			return;
+		}
+		isSavingTemplate = true;
+		try {
+			const response = await apiFetch('/api/template', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'savePreset', name: trimmed, sourceText: templateDraft })
+			});
+			if (response.ok) {
+				presetSuccess = 'Preset saved.';
+				presetName = '';
+				await loadTemplateSource();
+				return;
+			}
+			const payload = await response.json().catch(() => null);
+			if (payload?.details?.length) {
+				templateValidationErrors = payload.details;
+			} else {
+				presetError = payload?.error || 'Failed to save preset';
+			}
+		} catch (err) {
+			presetError = 'Failed to save preset';
+		} finally {
+			isSavingTemplate = false;
+		}
+	}
+
+	async function applyPreset() {
+		if (isSavingTemplate || selectedPresetId === null) return;
+		presetError = '';
+		presetSuccess = '';
+		isSavingTemplate = true;
+		try {
+			const response = await apiFetch('/api/template', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'applyPreset', id: selectedPresetId })
+			});
+			if (response.ok) {
+				try {
+					sessionStorage.removeItem('mcj-draft');
+				} catch (err) {
+					console.error('Failed to clear draft', err);
+				}
+				await onTemplateChanged();
+				await loadTemplateSource();
+				presetSuccess = 'Preset applied.';
+				return;
+			}
+			const payload = await response.json().catch(() => null);
+			presetError = payload?.error || 'Failed to apply preset';
+		} catch (err) {
+			presetError = 'Failed to apply preset';
+		} finally {
+			isSavingTemplate = false;
+		}
+	}
+
+	function startRenamePreset(presetId: number, currentName: string) {
+		renamingPresetId = presetId;
+		renamingPresetName = currentName;
+		presetError = '';
+		presetSuccess = '';
+	}
+
+	function cancelRenamePreset() {
+		renamingPresetId = null;
+		renamingPresetName = '';
+	}
+
+	async function submitRenamePreset() {
+		if (renamingPresetId === null) return;
+		const trimmed = renamingPresetName.trim();
+		if (!trimmed) {
+			presetError = 'Preset name is required';
+			return;
+		}
+		isSavingTemplate = true;
+		presetError = '';
+		presetSuccess = '';
+		try {
+			const response = await apiFetch('/api/template', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'renamePreset', id: renamingPresetId, name: trimmed })
+			});
+			if (response.ok) {
+				presetSuccess = 'Preset renamed.';
+				renamingPresetId = null;
+				renamingPresetName = '';
+				await loadTemplateSource();
+				return;
+			}
+			const payload = await response.json().catch(() => null);
+			presetError = payload?.error || 'Failed to rename preset';
+		} catch (err) {
+			presetError = 'Failed to rename preset';
+		} finally {
+			isSavingTemplate = false;
+		}
+	}
+
+	async function deletePreset(presetId: number) {
+		if (isSavingTemplate) return;
+		isSavingTemplate = true;
+		presetError = '';
+		presetSuccess = '';
+		try {
+			const response = await apiFetch('/api/template', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'deletePreset', id: presetId })
+			});
+			if (response.ok) {
+				presetSuccess = 'Preset deleted.';
+				if (selectedPresetId === presetId) {
+					selectedPresetId = null;
+				}
+				renamingPresetId = null;
+				renamingPresetName = '';
+				await loadTemplateSource();
+				return;
+			}
+			const payload = await response.json().catch(() => null);
+			presetError = payload?.error || 'Failed to delete preset';
+		} catch (err) {
+			presetError = 'Failed to delete preset';
 		} finally {
 			isSavingTemplate = false;
 		}
@@ -464,6 +625,102 @@
 				</div>
 
 				<div class="settings-card">
+					<div class="preset-row">
+						<div class="preset-dropdown">
+							<Dropdown
+								items={templatePresets.map(preset => ({ label: preset.name, value: preset.id.toString() }))}
+								placeholder="Select preset"
+								selectedValue={selectedPresetId?.toString() || null}
+								onSelect={(value) => { selectedPresetId = parseInt(value, 10); }}
+								onClear={() => { selectedPresetId = null; }}
+							/>
+						</div>
+						<button
+							type="button"
+							class="backup-btn"
+							onclick={applyPreset}
+							disabled={selectedPresetId === null || isSavingTemplate || isLoadingTemplate}
+						>
+							Apply
+						</button>
+					</div>
+					<div class="preset-actions-row">
+						<input
+							type="text"
+							class="preset-name-input"
+							placeholder="Preset name"
+							bind:value={presetName}
+						/>
+						<button
+							type="button"
+							class="backup-btn backup-btn-secondary"
+							onclick={savePreset}
+							disabled={isSavingTemplate || isLoadingTemplate || templatePresets.length >= PRESET_LIMIT}
+						>
+							Save Preset
+						</button>
+					</div>
+
+					{#if presetError}
+						<p class="location-error">{presetError}</p>
+					{/if}
+					{#if presetSuccess}
+						<p class="backup-success">{presetSuccess}</p>
+					{/if}
+
+					{#if templatePresets.length > 0}
+						<div class="preset-list">
+							{#each templatePresets as preset}
+								<div class="preset-item">
+									{#if renamingPresetId === preset.id}
+										<input
+											type="text"
+											class="preset-rename-input"
+											bind:value={renamingPresetName}
+										/>
+									{:else}
+										<span class="preset-name">{preset.name}</span>
+									{/if}
+									<div class="preset-item-actions">
+										{#if renamingPresetId === preset.id}
+											<button
+												type="button"
+												class="backup-btn backup-btn-secondary"
+												onclick={cancelRenamePreset}
+											>
+												Cancel
+											</button>
+											<button
+												type="button"
+												class="backup-btn"
+												onclick={submitRenamePreset}
+												disabled={isSavingTemplate}
+											>
+												Save
+											</button>
+										{:else}
+											<button
+												type="button"
+												class="backup-btn backup-btn-secondary"
+												onclick={() => startRenamePreset(preset.id, preset.name)}
+											>
+												Rename
+											</button>
+											<button
+												type="button"
+												class="backup-btn"
+												onclick={() => deletePreset(preset.id)}
+												disabled={isSavingTemplate}
+											>
+												Delete
+											</button>
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+
 					<div class="template-editor">
 						<p class="template-editor-description">
 							Wrap sub-questions inside <code>&lt;hp&gt;...&lt;/hp&gt;</code>.

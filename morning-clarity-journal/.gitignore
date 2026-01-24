@@ -22,9 +22,14 @@ vite.config.ts.timestamp-*
 
 # Database
 data/
+data/*.db
+data/*.db-*
 *.db
 *.db-wal
 *.db-shm
+
+# Sensitive artifacts
+cookies.txt
 
 # Logs
 *.log

@@ -1,6 +1,6 @@
-## Template System Plan (New)
+## Security Hardening Plan (New)
 
-Goal: Add an in-app template editor with a tag-based DSL. Past entries must render with their original template version; new entries use the latest template. UI/UX must remain visually identical.
+Goal: Ensure all user-provided content (including coordinates) is encrypted at rest, remove sensitive artifacts from the repo, and harden authentication handling without changing UI/UX or feature behavior.
 
 ## IMPORTANT: Rules for the implementing agent
 
@@ -11,221 +11,84 @@ Goal: Add an in-app template editor with a tag-based DSL. Past entries must rend
 4. **After ALL steps**, run `npm run build` and then `npm run dev` to verify the app loads and routes work.
 5. **Do NOT skip steps or combine steps.** Each step should keep the app usable.
 
-
-### DSL (tag-based, no visible IDs)
-Allowed tags:
-- `<hp>...</hp>` = main question prompt (auto-numbered in display)
-- `<mp>...</mp>` = meta question prompt (must be inside an `<hp>` block)
-- Optional placeholder attribute: `label="..."` on either tag
-
-Example:
-```
-<hp>Who am I doing this for?</hp>
-<mp label="Be specific...">What’s making me anxious right now?</mp>
-<mp>What am I avoiding?</mp>
-<hp label="Enter answer...">What if the fear is wrong?</hp>
-<mp>Evidence this fear might not be true?</mp>
-<mp>Upside if I act despite fear?</mp>
-```
-
-Rules:
-- No IDs in the DSL.
-- Each `<hp>` creates a question section with a textbox.
-- Each `<mp>` adds a labeled field under the most recent `<hp>`.
-- `<mp>` without a preceding `<hp>` is invalid.
-- If `label="..."` is present, use it as the textbox placeholder for that tag.
-- Backend auto-generates internal field IDs per template version.
-- Every template save creates a new version. Entries are pinned to their version.
-
 Security guardrails (apply to all steps below):
-- Treat template text as untrusted input; parse on server only.
-- Render prompts/placeholders as plain text only (no HTML injection).
-- Enforce max template size (20KB) and max lines (200) to prevent abuse.
-- Reject unknown tags/attributes with clear errors.
-- Keep template API behind existing cookie auth (no extra tokens).
-- Do not include template text in URLs or logs.
-- Encrypt template source at rest (use existing AES helpers).
+- Do not print secrets, tokens, or database contents in logs or console output.
+- Do not add any new authentication mechanisms or change existing cookie semantics unless explicitly instructed.
+- Do not change UI/UX layout or styling.
+- Avoid large refactors; keep diffs minimal and local to the listed files.
 
-Execution guardrails for the implementing agent:
-- Do one step at a time, update Implementation Logs after each step, and run `npx svelte-check --threshold error`.
-- Do not change UI/UX layout; only swap data sources.
-- Do not remove legacy support; entries must render with their own template version.
-- Do not create new files unless explicitly instructed.
-- Keep error messages and status codes exactly as specified below.
+### Step 1: Remove sensitive artifacts and prevent re-adding them
 
-TemplateModel JSON shape (must match exactly):
-```
-{
-  "questions": [
-    {
-      "id": "q1",
-      "number": 1,
-      "question": "Who am I doing this for?",
-      "fields": [
-        { "id": "f1", "label": "", "placeholder": "Enter answer..." },
-        { "id": "f2", "label": "What’s making me anxious right now?", "placeholder": "" }
-      ]
-    }
-  ],
-  "fieldIds": ["f1", "f2"]
-}
-```
-
-Schema rules:
-- `questions` order is render order.
-- `number` is 1-based HP numbering.
-- `question` is the HP text.
-- `fields` includes the HP's own textbox first, then MP fields in order.
-- `label` is empty string for HP textbox; MP label is the MP text.
-- `placeholder` is empty string when not provided.
-- `fieldIds` is a flat list of all field IDs in render order.
-
-### Step 14: Add template schema + migrations (backend)
-
-Edit `morning-clarity-journal/src/lib/db.ts`:
-1. Add `templates` table:
-	- `id INTEGER PRIMARY KEY AUTOINCREMENT`
-	- `created_at TEXT DEFAULT (datetime('now'))`
-	- `source_text_encrypted BLOB NOT NULL`
-	- `parsed_json TEXT NOT NULL`
-2. Add `entries.template_id INTEGER` column (nullable at first).
-3. Use `config` table to store `active_template_id`.
-4. Add helpers (same file):
-	- `createTemplateVersion(sourceText: string, parsed: TemplateModel): number` (encrypt before store)
-	- `setActiveTemplate(id: number): void`
-	- `getActiveTemplate(): { id: number; sourceText: string; parsed: TemplateModel } | null` (decrypt before return)
-	- `getTemplateById(id: number): { id: number; sourceText: string; parsed: TemplateModel } | null` (decrypt before return)
-	- `ensureActiveTemplate(): number` (seed default template if missing)
-	- `backfillEntryTemplateIds(activeTemplateId: number): void`
-5. On DB init, call `ensureActiveTemplate()` and `backfillEntryTemplateIds(...)` once.
-
-Migration details:
-- If `entries.template_id` is missing, add column with NULL default.
-- If `templates` table is empty, create a default template from existing `journalTemplate` and set as active.
-- Backfill existing entries by setting `template_id` to the active template ID where NULL.
+1. Delete `morning-clarity-journal/cookies.txt`.
+2. Delete `morning-clarity-journal/data/journal.db`, `morning-clarity-journal/data/journal.db-wal`, and `morning-clarity-journal/data/journal.db-shm`.
+3. Update or create `morning-clarity-journal/.gitignore` to include:
+	- `cookies.txt`
+	- `data/`
+	- `data/*.db`
+	- `data/*.db-*`
+4. Confirm the files are no longer tracked by Git (only remove them from the repo; do not delete local data outside the repo root).
 
 Guardrails:
-- No new files in this step.
-- Keep encryption and existing data intact.
-- Do NOT log template contents or parsed JSON.
+- Do not delete any other files.
+- Do not add new tooling or scripts.
 
-### Step 15: Template DSL parsing + default seed (backend)
+### Step 2: Verify encryption at rest coverage (user-provided content only)
 
-Edit `morning-clarity-journal/src/lib/template.ts`:
-1. Add types:
-	- `TemplateBlock` (type, text, placeholder?)
-	- `TemplateField` (id, label?, placeholder?)
-	- `TemplateQuestion` (id, number, question, fields)
-	- `TemplateModel` (questions, fieldIds)
-2. Add `parseTemplateSource(sourceText: string): { parsed: TemplateModel; errors: string[] }`
-	- Parse by tag pairs (`<hp ...>...</hp>` and `<mp ...>...</mp>`).
-	- `<hp>` starts a new question section; auto-number in render order.
-	- Each `<hp>` also creates its own textbox field.
-	- `<mp>` adds a labeled field under the most recent `<hp>`.
-	- If `<mp>` appears before any `<hp>`, return a validation error.
-	- Support optional `label="..."` attribute and map it to placeholder for that field.
-	- Generate stable IDs for this version only (e.g. `q1`, `f1`, `f2` in parse order).
-	- Enforce size limits before parsing and return a validation error if exceeded.
-3. Add `serializeDefaultTemplate(): string` that converts the current hardcoded `journalTemplate` into DSL text. Use it for initial seeding only.
-4. Keep `journalTemplate` for seed/back-compat only; do not use it in runtime UI after later steps.
-
-Guardrails:
-- Parse/validation must return line-level errors with helpful messages.
-- Do NOT add parsing on the client.
-
-Validation requirements:
-- Unknown tags: error `Unknown tag on line X`.
-- `<mp>` before any `<hp>`: error `MP without HP on line X`.
-- Empty tag content: error `Empty tag content on line X`.
-- Invalid attribute syntax: error `Invalid attribute on line X`.
-
-### Step 16: Template API endpoints (backend)
-
-Add NEW FILE `morning-clarity-journal/src/routes/api/template/+server.ts`:
-1. `GET`: return active template `{ id, sourceText, parsed }`.
-2. `POST`: accept `{ sourceText }`:
-	- Parse/validate via `parseTemplateSource`.
-	- If errors, return 400 with `{ error: 'Invalid template', details: [...] }`.
-	- Create template version and set active.
-	- Return `{ success: true, id }`.
+Review and update `morning-clarity-journal/src/lib/db.ts` and any other persistence logic:
+1. Inventory all SQLite tables/columns used in `src/lib/db.ts`:
+	- `entries`: `encrypted_data`, `date`, `timestamp`, `location_id`, `captured_lat`, `captured_lng`, `template_id`
+	- `templates`: `source_text_encrypted`, `parsed_json`
+	- `template_presets`: `source_text_encrypted`, `parsed_json`
+	- `locations`: `name`, `lat`, `lng`, `address`
+	- `config`: `value` (e.g., `active_template_id`)
+2. Mark which columns must be encrypted at rest (balanced scope):
+	- MUST already be encrypted: `entries.encrypted_data`, `templates.source_text_encrypted`, `template_presets.source_text_encrypted`
+	- MUST be encrypted if currently plaintext: `templates.parsed_json`, `template_presets.parsed_json`, `locations.name`, `locations.address`, `locations.lat`, `locations.lng`, `entries.captured_lat`, `entries.captured_lng`
+	- Metadata that can remain plaintext for queryability: `entries.date`, `entries.timestamp`, `entries.location_id`, `config.value`
+3. For each plaintext user-content column above, implement encryption on write using `src/lib/server/crypto.ts`:
+	- Add new `*_encrypted` columns (e.g., `parsed_json_encrypted`, `name_encrypted`, `address_encrypted`).
+	- Backfill existing rows by reading plaintext values, encrypting, and writing to the new columns.
+	- Update all read paths to decrypt from the encrypted columns only.
+	- Stop writing to plaintext columns after backfill.
+4. Keep decrypt paths server-side only; do not expose encryption helpers to the client.
+5. Add or update a short code comment near storage logic clarifying which columns are encrypted at rest.
 
 Guardrails:
-- Auth is enforced by hooks (no extra auth logic here).
-- No query tokens.
-- Do not return raw parse errors in 500s; always map to 400 with details.
+- Do not change DB schema unless required to encrypt data.
+- Do not log plaintext content during migration or debugging.
 
-### Step 17: Entries API + storage updates (backend)
+### Step 3: Enforce strong session secret length
 
-Edit `morning-clarity-journal/src/lib/db.ts`:
-1. Update `saveEntry(...)` to accept `templateId` and write `template_id`.
-2. Update `getEntryByDate(...)` to include `template_id`.
-
-Edit `morning-clarity-journal/src/routes/api/entries/+server.ts`:
-1. Before save, call `getActiveTemplate()` and require a valid template ID.
-2. Pass `template_id` to `saveEntry`.
-
-Edit `morning-clarity-journal/src/routes/api/entries/[date]/+server.ts`:
-1. Include `template_id` in the response.
-2. Fetch the template by `template_id` and return `template` (parsed model) alongside entry data.
+Edit `morning-clarity-journal/src/lib/auth.ts`:
+1. In both `createSessionToken` and `verifySessionToken`, after reading `env.JOURNAL_SESSION_SECRET`, enforce a minimum length of 32 characters.
+2. If the secret is missing or too short, throw an error with the exact message: `JOURNAL_SESSION_SECRET must be at least 32 characters`.
 
 Guardrails:
-- Do not change encryption format or client payload shape beyond adding template data.
-- If template lookup fails for an entry, return 500 with `Failed to load template`.
+- Do not change the token format or expiry.
+- Do not change error handling in callers.
 
-### Step 18: Update journal form rendering to use templates (frontend)
+### Step 4: Constant-time passphrase verification
 
-Edit `morning-clarity-journal/src/routes/journal/+page.svelte`:
-1. Fetch active template from `/api/template` on mount.
-2. Build `formData` from template field IDs (new helper).
-3. Replace `journalTemplate` usage with the fetched template model.
-4. If template load fails, show the existing load error UX.
-
-Implementation detail:
-- Create `createEmptyFormData(template: TemplateModel)` in `src/lib/template.ts` (or update `getEmptyJournalData` to accept a template).
-
-Edit `morning-clarity-journal/src/lib/components/JournalForm.svelte`:
-1. Remove `journalTemplate` import.
-2. Accept `template` as a prop and render from it.
-3. Keep the same UI structure and classes; only swap the data source.
-4. Do not change layout or styles; render HP/MP prompts exactly as current UI.
-
-Placeholder handling:
-- If a field has placeholder text, set `data-placeholder` attribute on the contenteditable.
-- Use CSS `:empty::before` to show placeholder text (no DOM changes).
+Edit `morning-clarity-journal/src/lib/auth.ts`:
+1. Replace the direct string comparison in `verifyPassphrase` with a constant-time comparison.
+2. Use `createHash('sha256')` to hash both the input and expected passphrase into buffers, then compare with `timingSafeEqual`.
+3. Keep the same error behavior if `JOURNAL_PASSPHRASE` is missing.
 
 Guardrails:
-- UI/UX must remain visually identical.
-- No client-side parsing.
+- Do not change the public function signature.
+- Do not log the passphrase or hashes.
 
-### Step 19: Update entry view rendering with template versions (frontend)
+### Step 5: Rotate secrets guidance and documentation
 
-Edit `morning-clarity-journal/src/routes/entry/[date]/+page.svelte`:
-1. Use `template` returned from `/api/entries/[date]` instead of `journalTemplate`.
-2. Compute legacy fields by comparing entry keys to template field IDs from the entry’s template.
-3. Keep legacy section behavior and layout unchanged.
-
-Guardrails:
-- Past entries must render exactly as before.
-
-### Step 20: Settings template editor UI (frontend)
-
-Edit `morning-clarity-journal/src/lib/components/SettingsModal.svelte`:
-1. Add “Edit Template” button (under Database Backup).
-2. Add a new modal with:
-	- Large textarea (monospace)
-	- Short usage instructions + example
-	- Load current template via `/api/template` on open
-	- Save via POST `/api/template`
-3. On successful save:
-	- Close editor
-	- Trigger a callback `onTemplateChanged` to refetch template in journal page
-	- Clear local draft (`mcj-draft`) to avoid mismatched fields
+Edit `morning-clarity-journal/README.md` and `morning-clarity-journal/.env.example`:
+1. Update the `JOURNAL_SESSION_SECRET` guidance to explicitly require 32+ characters.
+2. Add a short note instructing users to rotate the session secret if a cookie file or DB file was ever committed.
+3. Keep documentation changes minimal and consistent with existing style.
 
 Guardrails:
-- No new files for UI; keep within `SettingsModal.svelte`.
-- Use existing Modal component for consistency.
+- Do not add new sections unrelated to secrets or rotation.
 
-### Step 21: Final verification (template system)
+### Step 6: Final verification (security hardening)
 
 Run after each step: `npx svelte-check --threshold error`.
 
@@ -234,20 +97,13 @@ After all steps:
 2. `npm run dev`
 
 Manual checks:
-- Editing template creates new version and affects only future entries.
-- Old entries render with their original layout and fields.
-- Journal form UI looks the same as before.
-- Template editor shows clear validation errors on invalid lines.
-- Template source is encrypted in DB (verify `templates.source_text_encrypted` is not readable text).
+- App boot succeeds and login flow works as before.
+- No references to `cookies.txt` or `data/journal.db*` remain in the repo.
+- Auth continues to accept the correct passphrase.
+- All persisted user content is encrypted at rest (verify stored DB values are ciphertext, not plaintext).
 
 ---
 
 ## Implementation Logs
-Step 14: Added templates table and entries.template_id migrations in `src/lib/db.ts`, plus template version helpers, active-template config handling, and default template seeding/backfill using the current journal template. Ran `npx svelte-check --threshold error` with no issues.
-Step 15: Added template DSL parsing, validation, and default template serialization in `src/lib/template.ts`, and wired default seeding to serialize+parse in `src/lib/db.ts`. Updated legacy template fields to include placeholders and removed multiline/type metadata. Ran `npx svelte-check --threshold error` with no issues.
-Step 16: Added `/api/template` GET/POST endpoints to fetch and update the active template with validation errors mapped to 400 responses. Ran `npx svelte-check --threshold error` with no issues.
-Step 17: Stored template IDs on entries, required an active template during save, and returned entry templates from the date endpoint. Ran `npx svelte-check --threshold error` with no issues.
-Step 18: Loaded templates on the journal page, built form data from template field IDs, and rendered the form via the template model. Added placeholder rendering via `data-placeholder` and CSS. Ran `npx svelte-check --threshold error` with no issues.
-Step 19: Switched entry view rendering to use the entry’s template version, and computed legacy fields against that template’s field IDs. Ran `npx svelte-check --threshold error` with no issues.
-Step 20: Added template editor modal and API wiring in `SettingsModal.svelte`, cleared drafts on save, and provided styling for the editor. Wired template refresh callback in `journal/+page.svelte`. Ran `npx svelte-check --threshold error` with no issues.
-Step 21: Ran `npm run build` successfully. Started `npm run dev` to verify the app boots (server ready at localhost:5173) and then stopped due to timeout.
+
+Step 1 complete: removed cookies/db artifacts, updated `morning-clarity-journal/.gitignore` to ignore sensitive files, and ran `npx svelte-check --threshold error` (0 errors, 2 warnings).
