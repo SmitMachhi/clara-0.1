@@ -1,5 +1,5 @@
 import type { RequestHandler } from './$types';
-import { saveEntry, getAllEntries, getEntryDates } from '$lib/db.js';
+import { getActiveTemplate, saveEntry, getAllEntries, getEntryDates } from '$lib/db.js';
 import { formatDateISO, formatDateTime, isPastCutoff } from '$lib/utils.js';
 import { validateCoordinates } from '$lib/validation.js';
 import { parseJsonBody, successResponse, errorResponse } from '$lib/api-helpers.js';
@@ -51,8 +51,12 @@ export const POST: RequestHandler = async ({ request }) => {
 	const timestamp = formatDateTime(now);
 
 	try {
+		const template = getActiveTemplate();
+		if (!template) {
+			return errorResponse('Failed to load template', 500);
+		}
 		const encryptedData = encrypt(JSON.stringify(data));
-		const id = saveEntry(date, timestamp, locationId, encryptedData, capturedLat, capturedLng);
+		const id = saveEntry(date, timestamp, locationId, encryptedData, template.id, capturedLat, capturedLng);
 		return successResponse({ id, date });
 	} catch (error) {
 		return errorResponse('Entry for today already exists');

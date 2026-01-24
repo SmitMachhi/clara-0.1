@@ -5,7 +5,7 @@
 <script lang="ts">
 	import { tick } from 'svelte';
 	import { slide } from 'svelte/transition';
-	import { journalTemplate } from '$lib/template.js';
+	import type { TemplateModel } from '$lib/template.js';
 	import { toggleSet } from '$lib/utils.js';
 	import { TIME } from '$lib/constants.js';
 	import { formatCoordinate } from '$lib/location-utils.js';
@@ -32,6 +32,7 @@
 		saveError,
 		dateParts,
 		currentYear,
+		template,
 		isComplete,
 		completedFields,
 		totalFields,
@@ -52,6 +53,7 @@
 		saveError: string;
 		dateParts: DateParts;
 		currentYear: number;
+		template: TemplateModel;
 		isComplete: boolean;
 		completedFields: number;
 		totalFields: number;
@@ -65,8 +67,8 @@
 	let expandedSections = $state<Set<string>>(new Set());
 
 	$effect(() => {
-		if (expandedSections.size === 0 && journalTemplate.length > 0) {
-			expandedSections = new Set([journalTemplate[0].id]);
+		if (expandedSections.size === 0 && template.questions.length > 0) {
+			expandedSections = new Set([template.questions[0].id]);
 		}
 	});
 
@@ -157,7 +159,7 @@
 	</div>
 
 	<div class="page-content">
-		{#each journalTemplate as question}
+		{#each template.questions as question}
 			<div class="block" role="listitem">
 				<div class="block-controls">
 					<button class="block-handle" tabindex="-1" aria-label="Drag to move">
@@ -201,6 +203,7 @@
 									role="textbox"
 									aria-label={field.label || question.question}
 									data-field-id={field.id}
+									data-placeholder={field.placeholder || undefined}
 									oninput={(e) => handleInput(e, field.id)}
 									onpaste={handlePaste}
 									onfocus={() => handleFieldFocus(question.id)}

@@ -651,6 +651,11 @@ button:disabled {
 	content: '\200B'; /* zero-width space */
 }
 
+.field-input[data-placeholder]:empty::before {
+	content: attr(data-placeholder);
+	color: var(--text-placeholder);
+}
+
 /* Focus background - visible but still subtle */
 .field-input:focus {
 	background: rgba(55, 53, 47, 0.06);
@@ -1403,19 +1408,107 @@ button.recent-item:hover {
 	margin: 0 0 12px;
 }
 
+.settings-section-header {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.settings-modal-extended {
+	max-width: 760px;
+}
+
+.settings-modal-extended .modal-content {
+	min-height: 520px;
+}
+
+.settings-tabs {
+	display: flex;
+	gap: 8px;
+	padding: 6px;
+	border-radius: 10px;
+	background: var(--surface);
+	margin-bottom: 16px;
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+	border: 1px solid var(--border);
+}
+
+.settings-tab {
+	flex: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 8px 10px;
+	border-radius: 8px;
+	font-size: 0.875rem;
+	color: var(--text-secondary);
+	transition: all 0.15s;
+	position: relative;
+}
+
+.settings-tab:hover {
+	color: var(--text);
+}
+
+.settings-tab.active {
+	background: var(--surface);
+	color: var(--text);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.settings-tab.active::after {
+	content: '';
+	position: absolute;
+	left: 14px;
+	right: 14px;
+	bottom: -6px;
+	height: 1px;
+	background: rgba(35, 131, 226, 0.65);
+	border-radius: 999px;
+}
+
+.settings-tab-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding-top: 6px;
+}
+
+.settings-section-subtitle {
+	margin: 0;
+	font-size: 0.875rem;
+	color: var(--text-secondary);
+}
+
+.settings-card {
+	background: var(--surface-elevated);
+	border-radius: 8px;
+	padding: 16px;
+}
+
+.settings-empty {
+	margin: 0;
+	font-size: 0.875rem;
+	color: var(--text-tertiary);
+}
+
 /* Location List - Clean & Minimal */
 .location-list {
 	display: flex;
 	flex-direction: column;
 	gap: 1px;
-	margin-bottom: 16px;
+	margin-bottom: 0;
 }
 
 .location-item {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 8px 10px;
+	padding: 10px 10px;
 	border-radius: 4px;
 	transition: background 0.1s;
 }
@@ -1470,7 +1563,7 @@ button.recent-item:hover {
 .add-location-row {
 	display: flex;
 	gap: 8px;
-	margin-bottom: 8px;
+	margin-bottom: 10px;
 }
 
 .add-location-input {
@@ -1543,8 +1636,8 @@ button.recent-item:hover {
 
 /* Manual Entry Form */
 .manual-entry-form {
-	margin-top: 12px;
-	padding-top: 12px;
+	margin-top: 10px;
+	padding-top: 10px;
 	border-top: 1px solid var(--border);
 	display: flex;
 	flex-direction: column;
@@ -1605,7 +1698,7 @@ button.recent-item:hover {
 .backup-section {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: 10px;
 }
 
 .backup-description {
@@ -1664,7 +1757,7 @@ button.recent-item:hover {
 .backup-list {
 	display: flex;
 	flex-direction: column;
-	gap: 1px;
+	gap: 2px;
 }
 
 .backup-item {
@@ -1717,6 +1810,58 @@ button.recent-item:hover {
 .backup-download-btn:hover {
 	background: rgba(35, 131, 226, 0.1);
 	color: var(--accent);
+}
+
+/* ========================================
+   TEMPLATE EDITOR
+   ======================================== */
+
+.template-editor {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.template-editor-description {
+	font-size: 0.875rem;
+	color: var(--text-secondary);
+	margin: 0;
+	line-height: 1.5;
+}
+
+.template-editor-example {
+	font-size: 0.75rem;
+	color: var(--text-tertiary);
+	background: var(--surface-elevated);
+	border-radius: 6px;
+	padding: 10px 12px;
+	margin: 0;
+	white-space: pre-wrap;
+}
+
+.template-editor-textarea {
+	width: 100%;
+	min-height: 240px;
+	padding: 12px;
+	border-radius: 6px;
+	border: 1px solid var(--border);
+	background: transparent;
+	color: var(--text);
+	font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+	font-size: 0.875rem;
+	line-height: 1.5;
+	resize: vertical;
+}
+
+.template-editor-textarea:focus {
+	border-color: var(--accent);
+	outline: none;
+}
+
+.template-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
 }
 
 /* ========================================

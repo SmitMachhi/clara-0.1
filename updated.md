@@ -1,257 +1,253 @@
-# Security + UX + Optimization Fix Plan
+## Template System Plan (New)
+
+Goal: Add an in-app template editor with a tag-based DSL. Past entries must render with their original template version; new entries use the latest template. UI/UX must remain visually identical.
 
 ## IMPORTANT: Rules for the implementing agent
 
-1. **Follow `AGENTS.md`** rules (tabs, single quotes, file headers, lean pages, DRY, etc.)
+1. **Follow `AGENTS.md` rules** (tabs, single quotes, file headers, lean pages, DRY, etc.)
 2. **Implement ONE step at a time.** After each step, write a brief log paragraph at the bottom of this file under "## Implementation Logs".
-2.2. **Before starting any step, read the Implementation Logs first** so you don’t repeat work.
+   2.2. **Before starting any step, read the Implementation Logs first** so you don’t repeat work.
 3. **After each step**, run `npx svelte-check --threshold error` and fix any errors BEFORE moving to the next step.
 4. **After ALL steps**, run `npm run build` and then `npm run dev` to verify the app loads and routes work.
 5. **Do NOT skip steps or combine steps.** Each step should keep the app usable.
-6. **Do NOT create new files unless explicitly told to.** When a new file is required, this plan will say so.
-7. **Do NOT add public secrets.** Use `$env/dynamic/private` for server-only secrets.
-8. **Never reintroduce query-string auth tokens** (no `?token=...`).
 
----
 
-## Target Fixes (Summary)
-- Remove public bearer token usage and query-string tokens.
-- Add server-side rate limiting for `/api/auth`.
-- Move session handling to httpOnly signed cookies.
-- Enforce time cutoff on the server.
-- Remove/guard seed test endpoint.
-- Fix broken export CSV UI.
-- Unify theme toggle (single source of truth).
-- Improve load error UX and add draft safety.
-- Reduce redundant computations in sidebar.
-- Update README and `.env.example` for new env vars.
+### DSL (tag-based, no visible IDs)
+Allowed tags:
+- `<hp>...</hp>` = main question prompt (auto-numbered in display)
+- `<mp>...</mp>` = meta question prompt (must be inside an `<hp>` block)
+- Optional placeholder attribute: `label="..."` on either tag
 
----
+Example:
+```
+<hp>Who am I doing this for?</hp>
+<mp label="Be specific...">What’s making me anxious right now?</mp>
+<mp>What am I avoiding?</mp>
+<hp label="Enter answer...">What if the fear is wrong?</hp>
+<mp>Evidence this fear might not be true?</mp>
+<mp>Upside if I act despite fear?</mp>
+```
 
-## Step 1: Update env docs and README
+Rules:
+- No IDs in the DSL.
+- Each `<hp>` creates a question section with a textbox.
+- Each `<mp>` adds a labeled field under the most recent `<hp>`.
+- `<mp>` without a preceding `<hp>` is invalid.
+- If `label="..."` is present, use it as the textbox placeholder for that tag.
+- Backend auto-generates internal field IDs per template version.
+- Every template save creates a new version. Entries are pinned to their version.
 
-1. Edit `morning-clarity-journal/.env.example`:
-	- Remove `PUBLIC_API_TOKEN`.
-	- Add `JOURNAL_SESSION_SECRET=dev-session-secret-change-in-prod`.
-	- Keep `JOURNAL_PASSPHRASE` and `JOURNAL_ENCRYPTION_KEY`.
-2. Edit `morning-clarity-journal/README.md`:
-	- Remove the hardcoded password from the Security section.
-	- Replace “No environment variables required” with a short list of required env vars:
-		- `JOURNAL_PASSPHRASE`
-		- `JOURNAL_ENCRYPTION_KEY`
-		- `JOURNAL_SESSION_SECRET`
-	- Mention that all three are required in production.
+Security guardrails (apply to all steps below):
+- Treat template text as untrusted input; parse on server only.
+- Render prompts/placeholders as plain text only (no HTML injection).
+- Enforce max template size (20KB) and max lines (200) to prevent abuse.
+- Reject unknown tags/attributes with clear errors.
+- Keep template API behind existing cookie auth (no extra tokens).
+- Do not include template text in URLs or logs.
+- Encrypt template source at rest (use existing AES helpers).
 
----
+Execution guardrails for the implementing agent:
+- Do one step at a time, update Implementation Logs after each step, and run `npx svelte-check --threshold error`.
+- Do not change UI/UX layout; only swap data sources.
+- Do not remove legacy support; entries must render with their own template version.
+- Do not create new files unless explicitly instructed.
+- Keep error messages and status codes exactly as specified below.
 
-## Step 2: Implement signed httpOnly sessions + rate limiting
+TemplateModel JSON shape (must match exactly):
+```
+{
+  "questions": [
+    {
+      "id": "q1",
+      "number": 1,
+      "question": "Who am I doing this for?",
+      "fields": [
+        { "id": "f1", "label": "", "placeholder": "Enter answer..." },
+        { "id": "f2", "label": "What’s making me anxious right now?", "placeholder": "" }
+      ]
+    }
+  ],
+  "fieldIds": ["f1", "f2"]
+}
+```
 
-Edit `morning-clarity-journal/src/lib/auth.ts` to replace in-memory sessions with stateless signed tokens and add auth rate limiting.
+Schema rules:
+- `questions` order is render order.
+- `number` is 1-based HP numbering.
+- `question` is the HP text.
+- `fields` includes the HP's own textbox first, then MP fields in order.
+- `label` is empty string for HP textbox; MP label is the MP text.
+- `placeholder` is empty string when not provided.
+- `fieldIds` is a flat list of all field IDs in render order.
 
-Requirements:
-1. **Signed token format**: `<payloadBase64Url>.<signatureBase64Url>`
-2. **Payload**: JSON with `{ exp: number, nonce: string }` where `exp` is UNIX ms.
-3. **Signature**: HMAC-SHA256 over `payloadBase64Url` using `JOURNAL_SESSION_SECRET`.
-4. **Session duration**: 24h.
-5. **Rate limit**: 5 failed attempts per 15 minutes per IP; when exceeded, block for 15 minutes.
+### Step 14: Add template schema + migrations (backend)
 
-Implementation details:
-- Add helpers:
-	- `createSessionToken(): { token: string; expiresAt: number }`
-	- `verifySessionToken(token: string | undefined): boolean`
-	- `checkAuthRateLimit(ip: string): { ok: boolean; retryAfter?: number }`
-	- `recordAuthFailure(ip: string): void`
-	- `clearAuthFailures(ip: string): void`
-- Use `$env/dynamic/private` for `JOURNAL_SESSION_SECRET` and `JOURNAL_PASSPHRASE`.
-- Use `crypto.createHmac` and `crypto.randomBytes`.
-- Use base64url encoding (replace `+`→`-`, `/`→`_`, trim `=`).
+Edit `morning-clarity-journal/src/lib/db.ts`:
+1. Add `templates` table:
+	- `id INTEGER PRIMARY KEY AUTOINCREMENT`
+	- `created_at TEXT DEFAULT (datetime('now'))`
+	- `source_text_encrypted BLOB NOT NULL`
+	- `parsed_json TEXT NOT NULL`
+2. Add `entries.template_id INTEGER` column (nullable at first).
+3. Use `config` table to store `active_template_id`.
+4. Add helpers (same file):
+	- `createTemplateVersion(sourceText: string, parsed: TemplateModel): number` (encrypt before store)
+	- `setActiveTemplate(id: number): void`
+	- `getActiveTemplate(): { id: number; sourceText: string; parsed: TemplateModel } | null` (decrypt before return)
+	- `getTemplateById(id: number): { id: number; sourceText: string; parsed: TemplateModel } | null` (decrypt before return)
+	- `ensureActiveTemplate(): number` (seed default template if missing)
+	- `backfillEntryTemplateIds(activeTemplateId: number): void`
+5. On DB init, call `ensureActiveTemplate()` and `backfillEntryTemplateIds(...)` once.
+
+Migration details:
+- If `entries.template_id` is missing, add column with NULL default.
+- If `templates` table is empty, create a default template from existing `journalTemplate` and set as active.
+- Backfill existing entries by setting `template_id` to the active template ID where NULL.
 
 Guardrails:
-- Do NOT keep the old `sessions` Map.
-- Do NOT store session tokens in memory.
-- Do NOT use `$env/static/private`.
+- No new files in this step.
+- Keep encryption and existing data intact.
+- Do NOT log template contents or parsed JSON.
 
----
+### Step 15: Template DSL parsing + default seed (backend)
 
-## Step 3: Update `/api/auth` to use rate limiting + set cookie
+Edit `morning-clarity-journal/src/lib/template.ts`:
+1. Add types:
+	- `TemplateBlock` (type, text, placeholder?)
+	- `TemplateField` (id, label?, placeholder?)
+	- `TemplateQuestion` (id, number, question, fields)
+	- `TemplateModel` (questions, fieldIds)
+2. Add `parseTemplateSource(sourceText: string): { parsed: TemplateModel; errors: string[] }`
+	- Parse by tag pairs (`<hp ...>...</hp>` and `<mp ...>...</mp>`).
+	- `<hp>` starts a new question section; auto-number in render order.
+	- Each `<hp>` also creates its own textbox field.
+	- `<mp>` adds a labeled field under the most recent `<hp>`.
+	- If `<mp>` appears before any `<hp>`, return a validation error.
+	- Support optional `label="..."` attribute and map it to placeholder for that field.
+	- Generate stable IDs for this version only (e.g. `q1`, `f1`, `f2` in parse order).
+	- Enforce size limits before parsing and return a validation error if exceeded.
+3. Add `serializeDefaultTemplate(): string` that converts the current hardcoded `journalTemplate` into DSL text. Use it for initial seeding only.
+4. Keep `journalTemplate` for seed/back-compat only; do not use it in runtime UI after later steps.
 
-Edit `morning-clarity-journal/src/routes/api/auth/+server.ts`:
-1. Get client IP via `event.getClientAddress()`.
-2. Call `checkAuthRateLimit(ip)` before verifying the passphrase:
-	- If blocked, return 429 with `{ success: false, error: 'Too many attempts' }`
-	- Set `Retry-After` header to seconds (rounded up).
-3. If passphrase is wrong:
-	- Call `recordAuthFailure(ip)`
-	- Return 401.
-4. If passphrase is correct:
-	- Call `clearAuthFailures(ip)`
-	- Create session token with `createSessionToken()`
-	- Set cookie `session` with:
-		- `httpOnly: true`
-		- `sameSite: 'strict'`
-		- `secure: process.env.NODE_ENV === 'production'`
-		- `path: '/'`
-		- `maxAge` from token expiry
-	- Return `{ success: true }` (no token in JSON).
+Guardrails:
+- Parse/validation must return line-level errors with helpful messages.
+- Do NOT add parsing on the client.
 
----
+Validation requirements:
+- Unknown tags: error `Unknown tag on line X`.
+- `<mp>` before any `<hp>`: error `MP without HP on line X`.
+- Empty tag content: error `Empty tag content on line X`.
+- Invalid attribute syntax: error `Invalid attribute on line X`.
 
-## Step 4: Enforce cookie auth in hooks
+### Step 16: Template API endpoints (backend)
 
-Edit `morning-clarity-journal/src/hooks.server.ts`:
-1. **Remove** all bearer-token and query-token logic.
-2. For any `/api/*` route except `/api/auth` and `/api/session`:
-	- Read cookie `session` with `event.cookies.get('session')`.
-	- If missing or invalid (via `verifySessionToken`), return 403 JSON.
-3. Keep cache headers for `/_app/*` unchanged.
+Add NEW FILE `morning-clarity-journal/src/routes/api/template/+server.ts`:
+1. `GET`: return active template `{ id, sourceText, parsed }`.
+2. `POST`: accept `{ sourceText }`:
+	- Parse/validate via `parseTemplateSource`.
+	- If errors, return 400 with `{ error: 'Invalid template', details: [...] }`.
+	- Create template version and set active.
+	- Return `{ success: true, id }`.
 
----
+Guardrails:
+- Auth is enforced by hooks (no extra auth logic here).
+- No query tokens.
+- Do not return raw parse errors in 500s; always map to 400 with details.
 
-## Step 5: Add `/api/session` endpoint (NEW FILE)
+### Step 17: Entries API + storage updates (backend)
 
-Create `morning-clarity-journal/src/routes/api/session/+server.ts` with a GET handler:
-1. Read `session` cookie.
-2. If valid, return `new Response(null, { status: 204 })`.
-3. If invalid/missing, return `new Response(null, { status: 401 })`.
-
-Guardrail: This is the ONLY new file to add.
-
----
-
-## Step 6: Update client auth helpers and route guards
-
-Edit `morning-clarity-journal/src/lib/api-client.ts`:
-1. Remove `PUBLIC_API_TOKEN` import and any Authorization headers.
-2. Remove session token storage; replace with a boolean flag:
-	- `SESSION_FLAG_KEY = 'mcj-session-present'`
-	- `setSessionFlag()`, `clearSessionFlag()`, `hasSessionFlag()`
-3. `apiFetch()` should set `credentials: 'same-origin'`.
-
-Update these pages to use `/api/session` instead of `hasSessionToken()`:
-- `morning-clarity-journal/src/routes/+page.svelte`
-- `morning-clarity-journal/src/routes/journal/+page.svelte`
-- `morning-clarity-journal/src/routes/entry/[date]/+page.svelte`
-
-Required behavior:
-1. On mount, call `apiFetch('/api/session')`.
-2. If status is 204, continue; if 401, `goto('/')`.
-3. On successful login (unlock screen), call `setSessionFlag()` before redirect.
-4. Remove all uses of `hasSessionToken()` and any sessionStorage token logic.
-
----
-
-## Step 7: Enforce time cutoff on the server
+Edit `morning-clarity-journal/src/lib/db.ts`:
+1. Update `saveEntry(...)` to accept `templateId` and write `template_id`.
+2. Update `getEntryByDate(...)` to include `template_id`.
 
 Edit `morning-clarity-journal/src/routes/api/entries/+server.ts`:
-1. Import `isPastCutoff` from `src/lib/utils.ts`.
-2. In POST, before saving, check `isPastCutoff()`:
-	- If true, return `errorResponse('Past cutoff', 403)`.
-3. Keep client-side cutoff messaging unchanged.
+1. Before save, call `getActiveTemplate()` and require a valid template ID.
+2. Pass `template_id` to `saveEntry`.
 
----
+Edit `morning-clarity-journal/src/routes/api/entries/[date]/+server.ts`:
+1. Include `template_id` in the response.
+2. Fetch the template by `template_id` and return `template` (parsed model) alongside entry data.
 
-## Step 8: Remove seed test endpoint
+Guardrails:
+- Do not change encryption format or client payload shape beyond adding template data.
+- If template lookup fails for an entry, return 500 with `Failed to load template`.
 
-Delete `morning-clarity-journal/src/routes/api/seed-test/+server.ts`.
+### Step 18: Update journal form rendering to use templates (frontend)
 
-Guardrail: After deletion, run `rg "seed-test" morning-clarity-journal/src` and ensure no references remain.
+Edit `morning-clarity-journal/src/routes/journal/+page.svelte`:
+1. Fetch active template from `/api/template` on mount.
+2. Build `formData` from template field IDs (new helper).
+3. Replace `journalTemplate` usage with the fetched template model.
+4. If template load fails, show the existing load error UX.
 
----
+Implementation detail:
+- Create `createEmptyFormData(template: TemplateModel)` in `src/lib/template.ts` (or update `getEmptyJournalData` to accept a template).
 
-## Step 9: Fix backup download and remove dead CSV export
+Edit `morning-clarity-journal/src/lib/components/JournalForm.svelte`:
+1. Remove `journalTemplate` import.
+2. Accept `template` as a prop and render from it.
+3. Keep the same UI structure and classes; only swap the data source.
+4. Do not change layout or styles; render HP/MP prompts exactly as current UI.
+
+Placeholder handling:
+- If a field has placeholder text, set `data-placeholder` attribute on the contenteditable.
+- Use CSS `:empty::before` to show placeholder text (no DOM changes).
+
+Guardrails:
+- UI/UX must remain visually identical.
+- No client-side parsing.
+
+### Step 19: Update entry view rendering with template versions (frontend)
+
+Edit `morning-clarity-journal/src/routes/entry/[date]/+page.svelte`:
+1. Use `template` returned from `/api/entries/[date]` instead of `journalTemplate`.
+2. Compute legacy fields by comparing entry keys to template field IDs from the entry’s template.
+3. Keep legacy section behavior and layout unchanged.
+
+Guardrails:
+- Past entries must render exactly as before.
+
+### Step 20: Settings template editor UI (frontend)
 
 Edit `morning-clarity-journal/src/lib/components/SettingsModal.svelte`:
-1. Remove the "Export CSV" button and the `exportCsv()` function.
-2. Remove any `PUBLIC_API_TOKEN` import.
-3. Update `downloadBackup()` to:
-	- Use `window.open('/api/backup?action=download&filename=' + encodeURIComponent(filename), '_blank');`
+1. Add “Edit Template” button (under Database Backup).
+2. Add a new modal with:
+	- Large textarea (monospace)
+	- Short usage instructions + example
+	- Load current template via `/api/template` on open
+	- Save via POST `/api/template`
+3. On successful save:
+	- Close editor
+	- Trigger a callback `onTemplateChanged` to refetch template in journal page
+	- Clear local draft (`mcj-draft`) to avoid mismatched fields
 
-Edit `morning-clarity-journal/src/routes/api/backup/+server.ts`:
-1. Update the final error message to a generic `'Invalid action'`.
-2. Do NOT accept any query token.
+Guardrails:
+- No new files for UI; keep within `SettingsModal.svelte`.
+- Use existing Modal component for consistency.
 
----
+### Step 21: Final verification (template system)
 
-## Step 10: Unify theme toggle (single source of truth)
+Run after each step: `npx svelte-check --threshold error`.
 
-Edit `morning-clarity-journal/src/routes/+layout.svelte`:
-1. Change theme toggling to use `document.documentElement.classList.toggle('dark', isDark);`
-2. Remove any use of `light` class.
-
-Edit `morning-clarity-journal/src/routes/journal/+page.svelte`:
-1. Remove the floating theme button and its state (`isDarkMode`, `toggleTheme`).
-2. Remove `Icon` import if only used by that button.
-3. In `onMount` cleanup, remove only `ritual` class (do NOT remove `dark`).
-
----
-
-## Step 11: UX guardrails (loading errors + draft safety)
-
-Edit `morning-clarity-journal/src/routes/journal/+page.svelte`:
-1. Add `loadError` state and show a visible error with a “Retry” button when data fetch fails.
-2. Add draft persistence in `sessionStorage`:
-	- Key: `mcj-draft`
-	- On mount: if draft exists and no entry for today, load into `formData`.
-	- On any form change: store `formData` JSON in sessionStorage (debounce 300ms).
-	- On successful save: remove the draft key.
-3. Add `beforeunload` warning when `formData` has any content and entry is not saved.
-
-Guardrail: Do NOT store the draft in `localStorage`.
-
----
-
-## Step 12: Reduce sidebar recomputation
-
-Edit `morning-clarity-journal/src/lib/components/JournalSidebar.svelte` and `morning-clarity-journal/src/lib/stats.ts`:
-1. In `stats.ts`, update `getRecentEntries` to build a `Map` of entries by date instead of calling `entries.find` repeatedly.
-2. In `JournalSidebar.svelte`, compute once:
-	- `const stats = $derived(calculateStats(entryDates, yearDates));`
-	- `const recentEntries = $derived(getRecentEntries(yearDates, entryDates, entries));`
-3. Replace repeated `calculateStats(...)` and `getRecentEntries(...)` calls with the derived values.
-
----
-
-## Step 13: Final verification
-
-Run in order:
-1. `npx svelte-check --threshold error`
-2. `npm run build`
-3. `npm run dev`
+After all steps:
+1. `npm run build`
+2. `npm run dev`
 
 Manual checks:
-- Unlock flow works; wrong passphrase returns error.
-- Journal page blocks after 14:00 (unless `VITE_DISABLE_TIME_CUTOFF=true`).
-- Entry save + view works.
-- Settings modal downloads backups (no token in URL).
-- No “Export CSV” button.
-- Theme toggle works globally and doesn’t duplicate.
+- Editing template creates new version and affects only future entries.
+- Old entries render with their original layout and fields.
+- Journal form UI looks the same as before.
+- Template editor shows clear validation errors on invalid lines.
+- Template source is encrypted in DB (verify `templates.source_text_encrypted` is not readable text).
 
 ---
 
 ## Implementation Logs
-
-Step 1 completed: Updated .env.example to remove PUBLIC_API_TOKEN and add JOURNAL_SESSION_SECRET. Updated README.md to remove hardcoded password and document the three required environment variables (JOURNAL_PASSPHRASE, JOURNAL_ENCRYPTION_KEY, JOURNAL_SESSION_SECRET). Ran svelte-check - no errors.
-
-Step 2 completed: Replaced in-memory sessions with stateless signed tokens using HMAC-SHA256 signatures. Implemented createSessionToken(), verifySessionToken(), checkAuthRateLimit(), recordAuthFailure(), and clearAuthFailures() helpers. Session duration is 24h with base64url encoding. Rate limiting: 5 failed attempts per 15 minutes per IP. Removed old sessions Map. Ran svelte-check - no errors.
-
-Step 3 completed: Updated /api/auth to use rate limiting and set httpOnly session cookie. Added getClientAddress() IP extraction, checkAuthRateLimit() before passphrase verification, 429 response with Retry-After header when blocked, recordAuthFailure() on wrong passphrase, clearAuthFailures() on success. Session cookie set with httpOnly, sameSite=strict, secure in production, path=/, and maxAge from token expiry. Returns only { success: true } (no token in JSON). Ran svelte-check - no errors.
-
-Step 4 completed: Updated hooks.server.ts to enforce cookie auth. Removed all bearer-token and query-token logic. For /api/* routes except /api/auth and /api/session, read session cookie and verify with verifySessionToken(). Returns 403 JSON if missing or invalid. Kept cache headers for /_app/* unchanged. Ran svelte-check - no errors.
-
-Step 5 completed: Created new /api/session/+server.ts endpoint with GET handler. Reads session cookie and returns 204 if valid via verifySessionToken(), 401 if invalid/missing. This is the only new file created per the plan. Ran svelte-check - no errors.
-
-Step 6 completed: Updated src/lib/api-client.ts to remove PUBLIC_API_TOKEN import and all Authorization headers. Replaced session token storage with boolean flag (setSessionFlag, clearSessionFlag, hasSessionFlag). Updated apiFetch to use credentials: 'same-origin'. Updated +page.svelte, journal/+page.svelte, and entry/[date]/+page.svelte to call /api/session for auth verification and use setSessionFlag() on successful login. Removed all hasSessionToken() and sessionStorage token logic. Ran svelte-check - no errors.
-
-Step 7 completed: Enforced server-side cutoff in entries POST by importing isPastCutoff and returning a 403 error when past cutoff. Ran svelte-check - no errors.
-
-Step 8 completed: Deleted /api/seed-test endpoint and verified no remaining references with rg. Ran svelte-check - no errors.
-
-Step 9 completed: Removed Export CSV UI and PUBLIC_API_TOKEN usage from SettingsModal. Updated backup download to open without tokens and made backup endpoint return a generic 'Invalid action' error. Ran svelte-check - no errors.
-
-Step 10 completed: Unified theme toggling in layout to set the dark class only, removed the floating theme button and Icon import from the journal page, and kept ritual cleanup only. Ran svelte-check - no errors.
-
-Step 11 completed: Added loadError with retry flow, sessionStorage draft persistence with 300ms debounce, beforeunload warning for unsaved drafts, and draft cleanup on save in the journal page. Ran svelte-check - no errors.
-
-Step 12 completed: Optimized recent entries lookup using a Map and memoized stats/recent entries with derived values in the sidebar. Ran svelte-check - no errors.
-
-Step 13 completed: Ran npm run build successfully. Started npm run dev; server came up at http://localhost:5173/ before the command timed out in the sandbox.
+Step 14: Added templates table and entries.template_id migrations in `src/lib/db.ts`, plus template version helpers, active-template config handling, and default template seeding/backfill using the current journal template. Ran `npx svelte-check --threshold error` with no issues.
+Step 15: Added template DSL parsing, validation, and default template serialization in `src/lib/template.ts`, and wired default seeding to serialize+parse in `src/lib/db.ts`. Updated legacy template fields to include placeholders and removed multiline/type metadata. Ran `npx svelte-check --threshold error` with no issues.
+Step 16: Added `/api/template` GET/POST endpoints to fetch and update the active template with validation errors mapped to 400 responses. Ran `npx svelte-check --threshold error` with no issues.
+Step 17: Stored template IDs on entries, required an active template during save, and returned entry templates from the date endpoint. Ran `npx svelte-check --threshold error` with no issues.
+Step 18: Loaded templates on the journal page, built form data from template field IDs, and rendered the form via the template model. Added placeholder rendering via `data-placeholder` and CSS. Ran `npx svelte-check --threshold error` with no issues.
+Step 19: Switched entry view rendering to use the entry’s template version, and computed legacy fields against that template’s field IDs. Ran `npx svelte-check --threshold error` with no issues.
+Step 20: Added template editor modal and API wiring in `SettingsModal.svelte`, cleared drafts on save, and provided styling for the editor. Wired template refresh callback in `journal/+page.svelte`. Ran `npx svelte-check --threshold error` with no issues.
+Step 21: Ran `npm run build` successfully. Started `npm run dev` to verify the app boots (server ready at localhost:5173) and then stopped due to timeout.

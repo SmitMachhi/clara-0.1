@@ -7,6 +7,7 @@
 	import { formatCoordinate } from '$lib/location-utils.js';
 	import { captureAndSaveLocation, addLocation, deleteLocation, requestBackup, fetchBackups } from '$lib/journal-actions.js';
 	import type { Location } from '$lib/db.js';
+	import { apiFetch } from '$lib/api-client.js';
 	import Icon from '$lib/components/Icons.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -15,12 +16,14 @@
 		open,
 		locations,
 		onclose,
-		onLocationsChanged
+		onLocationsChanged,
+		onTemplateChanged
 	}: {
 		open: boolean;
 		locations: Location[];
 		onclose: () => void;
 		onLocationsChanged: () => void;
+		onTemplateChanged: () => void;
 	} = $props();
 
 	let newLocationName = $state('');
@@ -37,6 +40,25 @@
 	let backupSuccess = $state('');
 	let backups = $state<{ filename: string; size: number; created: string }[]>([]);
 	let isLoadingBackups = $state(false);
+	let isLoadingTemplate = $state(false);
+	let isSavingTemplate = $state(false);
+	let templateDraft = $state('');
+	let templateLoadError = $state('');
+	let templateValidationErrors = $state<string[]>([]);
+	let templateSuccess = $state('');
+	let hasLoadedTemplate = $state(false);
+	let activeTab = $state<'locations' | 'database' | 'template'>('locations');
+
+	const TEMPLATE_EXAMPLE = [
+		'<hp>Who am I doing this for?',
+		'<mp label="Be specific...">What\'s making me anxious right now?</mp>',
+		'<mp>What am I avoiding?</mp>',
+		'</hp>',
+		'<hp label="Enter answer...">What if the fear is wrong?',
+		'<mp>Evidence this fear might not be true?</mp>',
+		'<mp>Upside if I act despite fear?</mp>',
+		'</hp>'
+	].join('\\n');
 
 	function getCurrentLocationAndSave() {
 		isGettingLocation = true;
@@ -113,6 +135,13 @@
 	$effect(() => {
 		if (open) {
 			loadBackups();
+			activeTab = 'locations';
+		}
+	});
+
+	$effect(() => {
+		if (open && activeTab === 'template' && !hasLoadedTemplate) {
+			loadTemplateSource();
 		}
 	});
 
@@ -154,163 +183,341 @@
 			isCreatingBackup = false;
 		}
 	}
+
+	async function loadTemplateSource() {
+		isLoadingTemplate = true;
+		templateLoadError = '';
+		templateValidationErrors = [];
+		templateSuccess = '';
+
+		try {
+			const response = await apiFetch('/api/template');
+			if (!response.ok) {
+				templateLoadError = 'Failed to load template';
+				return;
+			}
+			const data = await response.json();
+			if (!data?.sourceText) {
+				templateLoadError = 'Failed to load template';
+				return;
+			}
+			templateDraft = data.sourceText;
+			hasLoadedTemplate = true;
+		} catch (err) {
+			templateLoadError = 'Failed to load template';
+		} finally {
+			isLoadingTemplate = false;
+		}
+	}
+
+	async function saveTemplate() {
+		if (isSavingTemplate) return;
+		isSavingTemplate = true;
+		templateLoadError = '';
+		templateValidationErrors = [];
+		templateSuccess = '';
+
+		try {
+			const response = await apiFetch('/api/template', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ sourceText: templateDraft })
+			});
+
+			if (response.ok) {
+				try {
+					sessionStorage.removeItem('mcj-draft');
+				} catch (err) {
+					console.error('Failed to clear draft', err);
+				}
+				await onTemplateChanged();
+				templateSuccess = 'Template saved.';
+				return;
+			}
+
+			const payload = await response.json().catch(() => null);
+			if (payload?.details?.length) {
+				templateValidationErrors = payload.details;
+			} else {
+				templateLoadError = payload?.error || 'Failed to save template';
+			}
+		} catch (err) {
+			templateLoadError = 'Failed to save template';
+		} finally {
+			isSavingTemplate = false;
+		}
+	}
+
+	function setActiveTab(tab: 'locations' | 'database' | 'template') {
+		activeTab = tab;
+	}
 </script>
 
 {#if open}
-	<Modal open={open} title="Settings" onclose={onclose}>
-		<h3 class="settings-section-title">Locations</h3>
-
-		{#if locations.length > 0}
-			<div class="location-list">
-				{#each locations as loc}
-					<div class="location-item">
-						<div class="location-info">
-							<span class="location-name">{loc.name}</span>
-							<span class="location-meta">
-								{#if loc.address}
-									{loc.address}
-								{:else}
-									{formatCoordinate(loc.lat)}, {formatCoordinate(loc.lng)}
-								{/if}
-							</span>
-						</div>
-						<button
-							class="location-delete-btn"
-							onclick={() => deleteLocationPreset(loc.id)}
-							disabled={isDeletingLocation === loc.id}
-							aria-label="Delete {loc.name}"
-						>
-							{#if isDeletingLocation === loc.id}
-								<Spinner variant="text" size="small" />
-							{:else}
-								<Icon name="trash" size={14} />
-							{/if}
-						</button>
-					</div>
-				{/each}
-			</div>
-		{/if}
-
-		<div class="add-location-row">
-			<input
-				type="text"
-				class="add-location-input"
-				placeholder="New location name..."
-				bind:value={newLocationName}
-			/>
+	<Modal open={open} title="Settings" onclose={onclose} className="settings-modal-extended">
+		<div class="settings-tabs">
 			<button
 				type="button"
-				class="add-location-gps-btn"
-				onclick={getCurrentLocationAndSave}
-				disabled={isGettingLocation || !newLocationName.trim()}
-				title="Save with current GPS location"
+				class="settings-tab"
+				class:active={activeTab === 'locations'}
+				onclick={() => setActiveTab('locations')}
 			>
-				{#if isGettingLocation}
-					<Spinner variant="text" size="small" />
-				{:else}
-					<Icon name="location" size={16} />
-				{/if}
+				<Icon name="location" size={14} />
+				<span>Locations</span>
+			</button>
+			<button
+				type="button"
+				class="settings-tab"
+				class:active={activeTab === 'database'}
+				onclick={() => setActiveTab('database')}
+			>
+				<Icon name="download" size={14} />
+				<span>Database</span>
+			</button>
+			<button
+				type="button"
+				class="settings-tab"
+				class:active={activeTab === 'template'}
+				onclick={() => setActiveTab('template')}
+			>
+				<Icon name="settings" size={14} />
+				<span>Template</span>
 			</button>
 		</div>
 
-		{#if locationError}
-			<p class="location-error">{locationError}</p>
-		{/if}
-
-		<button
-			type="button"
-			class="manual-entry-toggle"
-			onclick={() => showManualEntry = !showManualEntry}
-		>
-			{showManualEntry ? '− Hide manual entry' : '+ Enter coordinates manually'}
-		</button>
-
-		{#if showManualEntry}
-			<div class="manual-entry-form">
-				<div class="manual-entry-row">
-					<input
-						type="text"
-						class="manual-input"
-						placeholder="Latitude"
-						bind:value={newLocationLat}
-					/>
-					<input
-						type="text"
-						class="manual-input"
-						placeholder="Longitude"
-						bind:value={newLocationLng}
-					/>
+		{#if activeTab === 'locations'}
+			<section class="settings-tab-panel">
+				<div class="settings-section-header">
+					<h3 class="settings-section-title">Locations</h3>
+					<p class="settings-section-subtitle">Saved places for quick tagging.</p>
 				</div>
-				<input
-					type="text"
-					class="manual-input full"
-					placeholder="Address (optional)"
-					bind:value={newLocationAddress}
-				/>
-				<button
-					type="button"
-					class="manual-save-btn"
-					onclick={addLocationPreset}
-					disabled={isAddingLocation || !newLocationName.trim() || !newLocationLat || !newLocationLng}
-				>
-					{isAddingLocation ? 'Saving...' : 'Save'}
-				</button>
-			</div>
-		{/if}
 
-		<h3 class="settings-section-title" style="margin-top: 2rem;">Database Backup</h3>
-		<div class="backup-section">
-			<p class="backup-description">
-				Create a backup of your journal database. Backups are stored locally in the backups folder.
-			</p>
-			<div class="backup-actions">
-				<button
-					type="button"
-					class="backup-btn"
-					onclick={createBackup}
-					disabled={isCreatingBackup}
-				>
-					{#if isCreatingBackup}
-						<Spinner variant="text" size="small" />
-						<span>Creating backup...</span>
+				<div class="settings-card">
+					{#if locations.length > 0}
+						<div class="location-list">
+							{#each locations as loc}
+								<div class="location-item">
+									<div class="location-info">
+										<span class="location-name">{loc.name}</span>
+										<span class="location-meta">
+											{#if loc.address}
+												{loc.address}
+											{:else}
+												{formatCoordinate(loc.lat)}, {formatCoordinate(loc.lng)}
+											{/if}
+										</span>
+									</div>
+									<button
+										class="location-delete-btn"
+										onclick={() => deleteLocationPreset(loc.id)}
+										disabled={isDeletingLocation === loc.id}
+										aria-label="Delete {loc.name}"
+									>
+										{#if isDeletingLocation === loc.id}
+											<Spinner variant="text" size="small" />
+										{:else}
+											<Icon name="trash" size={14} />
+										{/if}
+									</button>
+								</div>
+							{/each}
+						</div>
 					{:else}
-						<Icon name="download" size={16} />
-						<span>Create Backup</span>
+						<p class="settings-empty">No saved locations yet.</p>
 					{/if}
-				</button>
-			</div>
-			{#if backupError}
-				<p class="location-error">{backupError}</p>
-			{/if}
-			{#if backupSuccess}
-				<p class="backup-success">{backupSuccess}</p>
-			{/if}
-
-			{#if isLoadingBackups}
-				<div class="backup-loading">
-					<Spinner variant="text" size="small" />
 				</div>
-			{:else if backups.length > 0}
-				<div class="backup-list">
-					{#each backups as backup}
-						<div class="backup-item">
-							<div class="backup-item-info">
-								<span class="backup-item-date">{formatBackupDate(backup.created)}</span>
-								<span class="backup-item-size">{formatFileSize(backup.size)}</span>
+
+				<div class="settings-card">
+					<div class="add-location-row">
+						<input
+							type="text"
+							class="add-location-input"
+							placeholder="New location name..."
+							bind:value={newLocationName}
+						/>
+						<button
+							type="button"
+							class="add-location-gps-btn"
+							onclick={getCurrentLocationAndSave}
+							disabled={isGettingLocation || !newLocationName.trim()}
+							title="Save with current GPS location"
+						>
+							{#if isGettingLocation}
+								<Spinner variant="text" size="small" />
+							{:else}
+								<Icon name="location" size={16} />
+							{/if}
+						</button>
+					</div>
+
+					{#if locationError}
+						<p class="location-error">{locationError}</p>
+					{/if}
+
+					<button
+						type="button"
+						class="manual-entry-toggle"
+						onclick={() => showManualEntry = !showManualEntry}
+					>
+						{showManualEntry ? '− Hide manual entry' : '+ Enter coordinates manually'}
+					</button>
+
+					{#if showManualEntry}
+						<div class="manual-entry-form">
+							<div class="manual-entry-row">
+								<input
+									type="text"
+									class="manual-input"
+									placeholder="Latitude"
+									bind:value={newLocationLat}
+								/>
+								<input
+									type="text"
+									class="manual-input"
+									placeholder="Longitude"
+									bind:value={newLocationLng}
+								/>
 							</div>
+							<input
+								type="text"
+								class="manual-input full"
+								placeholder="Address (optional)"
+								bind:value={newLocationAddress}
+							/>
 							<button
 								type="button"
-								class="backup-download-btn"
-								onclick={() => downloadBackup(backup.filename)}
-								title="Download {backup.filename}"
+								class="manual-save-btn"
+								onclick={addLocationPreset}
+								disabled={isAddingLocation || !newLocationName.trim() || !newLocationLat || !newLocationLng}
 							>
-								<Icon name="download" size={14} />
+								{isAddingLocation ? 'Saving...' : 'Save'}
 							</button>
 						</div>
-					{/each}
+					{/if}
 				</div>
-			{/if}
-		</div>
+			</section>
+		{:else if activeTab === 'database'}
+			<section class="settings-tab-panel">
+				<div class="settings-section-header">
+					<h3 class="settings-section-title">Database Backup</h3>
+					<p class="settings-section-subtitle">Keep local snapshots of your journal.</p>
+				</div>
 
+				<div class="settings-card backup-section">
+					<p class="backup-description">
+						Create a backup of your journal database. Backups are stored locally in the backups folder.
+					</p>
+					<div class="backup-actions">
+						<button
+							type="button"
+							class="backup-btn"
+							onclick={createBackup}
+							disabled={isCreatingBackup}
+						>
+							{#if isCreatingBackup}
+								<Spinner variant="text" size="small" />
+								<span>Creating backup...</span>
+							{:else}
+								<Icon name="download" size={16} />
+								<span>Create Backup</span>
+							{/if}
+						</button>
+					</div>
+					{#if backupError}
+						<p class="location-error">{backupError}</p>
+					{/if}
+					{#if backupSuccess}
+						<p class="backup-success">{backupSuccess}</p>
+					{/if}
+
+					{#if isLoadingBackups}
+						<div class="backup-loading">
+							<Spinner variant="text" size="small" />
+						</div>
+					{:else if backups.length > 0}
+						<div class="backup-list">
+							{#each backups as backup}
+								<div class="backup-item">
+									<div class="backup-item-info">
+										<span class="backup-item-date">{formatBackupDate(backup.created)}</span>
+										<span class="backup-item-size">{formatFileSize(backup.size)}</span>
+									</div>
+									<button
+										type="button"
+										class="backup-download-btn"
+										onclick={() => downloadBackup(backup.filename)}
+										title="Download {backup.filename}"
+									>
+										<Icon name="download" size={14} />
+									</button>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			</section>
+		{:else}
+			<section class="settings-tab-panel">
+				<div class="settings-section-header">
+					<h3 class="settings-section-title">Template</h3>
+					<p class="settings-section-subtitle">Edit prompts for future entries.</p>
+				</div>
+
+				<div class="settings-card">
+					<div class="template-editor">
+						<p class="template-editor-description">
+							Wrap sub-questions inside <code>&lt;hp&gt;...&lt;/hp&gt;</code>.
+							Optional placeholders use <code>label=\"...\"</code>.
+						</p>
+						<pre class="template-editor-example">{TEMPLATE_EXAMPLE}</pre>
+
+						{#if templateLoadError}
+							<p class="location-error">{templateLoadError}</p>
+						{/if}
+						{#if templateValidationErrors.length > 0}
+							<div class="template-error-list">
+								{#each templateValidationErrors as err}
+									<p class="location-error">{err}</p>
+								{/each}
+							</div>
+						{/if}
+						{#if templateSuccess}
+							<p class="backup-success">{templateSuccess}</p>
+						{/if}
+
+						<textarea
+							class="template-editor-textarea"
+							rows="16"
+							bind:value={templateDraft}
+							disabled={isLoadingTemplate || isSavingTemplate}
+						></textarea>
+
+						<div class="template-actions">
+							<button
+								type="button"
+								class="backup-btn backup-btn-secondary"
+								onclick={loadTemplateSource}
+								disabled={isLoadingTemplate || isSavingTemplate}
+							>
+								Reload
+							</button>
+							<button
+								type="button"
+								class="backup-btn"
+								onclick={saveTemplate}
+								disabled={isSavingTemplate || isLoadingTemplate}
+							>
+								{#if isSavingTemplate}
+									<Spinner variant="text" size="small" />
+									<span>Saving...</span>
+								{:else}
+									<span>Save Template</span>
+								{/if}
+							</button>
+						</div>
+					</div>
+				</div>
+			</section>
+		{/if}
 	</Modal>
 {/if}

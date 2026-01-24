@@ -10,8 +10,10 @@
 		title: string;
 		onclose: () => void;
 		children: any;
+		className?: string;
 	}
-	let { open, title, onclose, children }: Props = $props();
+	let { open, title, onclose, children, className }: Props = $props();
+	const modalClassName = className ? `modal ${className}` : 'modal';
 
 	function handleOverlayKey(event: KeyboardEvent) {
 		if (event.key === 'Enter' || event.key === ' ') {
@@ -31,7 +33,7 @@
 	>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="modal" onclick={(e) => e.stopPropagation()}>
+		<div class={modalClassName} onclick={(e) => e.stopPropagation()}>
 			<div class="modal-header">
 				<h2 class="modal-title">{title}</h2>
 				<button class="modal-close-btn" onclick={onclose} aria-label="Close">

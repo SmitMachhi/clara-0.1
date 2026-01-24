@@ -5,7 +5,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { getEmptyJournalData, journalTemplate } from '$lib/template.js';
+	import { createEmptyFormData } from '$lib/template.js';
+	import type { TemplateModel } from '$lib/template.js';
 	import { formatDateISO, isPastCutoff, getYearDates, getDateTimeParts } from '$lib/utils.js';
 	import type { Location, Entry } from '$lib/db.js';
 	import { TIME } from '$lib/constants.js';
@@ -19,7 +20,8 @@
 	const DRAFT_STORAGE_KEY = 'mcj-draft';
 	const DRAFT_DEBOUNCE_MS = 300;
 
-	let formData = $state(getEmptyJournalData());
+	let template = $state<TemplateModel | null>(null);
+	let formData = $state<Record<string, string>>({});
 	let locations = $state<Location[]>([]);
 	let selectedLocationId = $state<number | null>(null);
 	let capturedLat = $state<number | null>(null);
@@ -42,7 +44,7 @@
 	const today = formatDateISO(new Date());
 	const currentYear = new Date().getFullYear();
 	const yearDates = getYearDates(currentYear);
-	const fieldIds = journalTemplate.flatMap(q => q.fields.map(f => f.id));
+	const fieldIds = $derived(template ? template.fieldIds : []);
 
 	let completedFields = $derived(fieldIds.filter(id => formData[id]?.trim().length > 0).length);
 	let totalFields = $derived(fieldIds.length);
@@ -112,12 +114,35 @@
 		}
 	}
 
+	async function loadTemplate(): Promise<boolean> {
+		try {
+			const response = await apiFetch('/api/template');
+			if (!response.ok) {
+				return false;
+			}
+			const data = await response.json();
+			if (!data?.parsed?.fieldIds) {
+				return false;
+			}
+			template = data.parsed as TemplateModel;
+			formData = createEmptyFormData(template);
+			return true;
+		} catch (err) {
+			console.error('Failed to load template', err);
+			return false;
+		}
+	}
+
 	async function loadAllData(): Promise<boolean> {
 		isLoadingData = true;
 		loadError = '';
-		const [locationsOk, entriesOk] = await Promise.all([loadLocations(), loadEntries()]);
+		const [locationsOk, entriesOk, templateOk] = await Promise.all([
+			loadLocations(),
+			loadEntries(),
+			loadTemplate()
+		]);
 		isLoadingData = false;
-		if (!locationsOk || !entriesOk) {
+		if (!locationsOk || !entriesOk || !templateOk) {
 			loadError = 'Failed to load journal data.';
 			return false;
 		}
@@ -129,6 +154,13 @@
 		if (ok) {
 			hasEntryToday = entryDates.includes(today);
 			restoreDraft();
+		}
+	}
+
+	async function handleTemplateChanged() {
+		const ok = await loadTemplate();
+		if (!ok) {
+			console.error('Failed to reload template');
 		}
 	}
 
@@ -276,22 +308,27 @@
 	<div class="notion-page">
 		<div class="main-area">
 			<main class="content">
-				<JournalForm
-					{formData} {locations} {selectedLocationId}
-					{capturedLat} {capturedLng} {isCapturingGps} {gpsError}
-					{isSaving} {saveError} {dateParts} {currentYear}
-					{isComplete} {completedFields} {totalFields}
-					onSubmit={handleSubmit}
-					onCaptureLocation={captureCurrentLocation}
-					onClearLocation={clearCapturedLocation}
-					onSelectLocation={(id) => { selectedLocationId = id; capturedLat = null; capturedLng = null; }}
-					onClearSelectedLocation={() => { selectedLocationId = null; }}
-				/>
+				{#if template}
+					<JournalForm
+						{formData} {locations} {selectedLocationId}
+						{capturedLat} {capturedLng} {isCapturingGps} {gpsError}
+						{isSaving} {saveError} {dateParts} {currentYear}
+						{template}
+						{isComplete} {completedFields} {totalFields}
+						onSubmit={handleSubmit}
+						onCaptureLocation={captureCurrentLocation}
+						onClearLocation={clearCapturedLocation}
+						onSelectLocation={(id) => { selectedLocationId = id; capturedLat = null; capturedLng = null; }}
+						onClearSelectedLocation={() => { selectedLocationId = null; }}
+					/>
+				{/if}
 			</main>
-			<div class="progress-pill">
-				<span class="progress-count">{completedFields}</span>
-				<span class="progress-text">of {totalFields}</span>
-			</div>
+			{#if template}
+				<div class="progress-pill">
+					<span class="progress-count">{completedFields}</span>
+					<span class="progress-text">of {totalFields}</span>
+				</div>
+			{/if}
 		</div>
 		<JournalSidebar
 			{entries} {entryDates} {yearDates} {currentYear}
@@ -304,4 +341,10 @@
 		/>
 	</div>
 {/if}
-<SettingsModal open={settingsOpen} {locations} onclose={() => settingsOpen = false} onLocationsChanged={loadLocations} />
+<SettingsModal
+	open={settingsOpen}
+	{locations}
+	onclose={() => settingsOpen = false}
+	onLocationsChanged={loadLocations}
+	onTemplateChanged={handleTemplateChanged}
+/>

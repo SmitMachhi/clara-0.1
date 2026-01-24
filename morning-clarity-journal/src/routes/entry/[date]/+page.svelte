@@ -6,7 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { slide } from 'svelte/transition';
-	import { journalTemplate, getCurrentFieldIds } from '$lib/template.js';
+	import type { TemplateModel } from '$lib/template.js';
 	import type { EntryWithData, JournalData } from '$lib/db.js';
 	import { formatCoordinate } from '$lib/location-utils.js';
 	import { getLegacyFieldLabel } from '$lib/legacy-field-labels.js';
@@ -15,6 +15,7 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 
 	let entry = $state<EntryWithData | null>(null);
+	let template = $state<TemplateModel | null>(null);
 	let loading = $state(true);
 	let error = $state('');
 	let expandedQuestions = $state<Set<string>>(new Set());
@@ -39,15 +40,20 @@
 			const entryRes = await apiFetch(`/api/entries/${date}`);
 			if (entryRes.ok) {
 				const apiEntry = await entryRes.json();
+				if (!apiEntry.template) {
+					error = 'Failed to load template';
+					return;
+				}
 
 				const loadedEntry = {
 					...apiEntry,
 					data: apiEntry.data as JournalData
 				};
 				entry = loadedEntry;
+				template = apiEntry.template as TemplateModel;
 
 				const questionsWithContent = new Set<string>();
-				for (const question of journalTemplate) {
+				for (const question of template.questions) {
 					for (const field of question.fields) {
 						if (loadedEntry.data[field.id as keyof typeof loadedEntry.data]) {
 							questionsWithContent.add(question.id);
@@ -84,8 +90,8 @@
 	
 	// Check if entry has legacy fields (from old template)
 	function hasLegacyContent(): boolean {
-		if (!entry) return false;
-		const currentFieldIds = new Set(getCurrentFieldIds());
+		if (!entry || !template) return false;
+		const currentFieldIds = new Set(template.fieldIds);
 		return Object.entries(entry.data).some(([key, value]) => 
 			value && !currentFieldIds.has(key)
 		);
@@ -113,7 +119,7 @@
 					<p class="message-title">{error}</p>
 					<button onclick={goBack} class="back-link">← Go back</button>
 				</div>
-			{:else if entry}
+			{:else if entry && template}
 				{@const tp = getTimestampParts(entry.timestamp)}
 				<div class="page-container">
 					<!-- Page header -->
@@ -132,7 +138,7 @@
 					
 					<!-- Page content -->
 					<div class="page-content">
-						{#each journalTemplate as question}
+						{#each template.questions as question}
 							{@const hasContent = question.fields.some(f => entry?.data[f.id as keyof typeof entry.data])}
 							{#if hasContent}
 								<div class="block">
@@ -189,14 +195,14 @@
 									<span class="toggle-title legacy">Additional notes</span>
 								</button>
 								
-								{#if expandedQuestions.has('legacy')}
-									<div class="toggle-content" transition:slide={{ duration: 150 }}>
-										{#each Object.entries(entry.data) as [key, value]}
-											{@const isLegacy = !getCurrentFieldIds().includes(key)}
-											{#if isLegacy && value}
-												<div class="field-block">
-													<div class="field-label">{getLegacyFieldLabel(key)}</div>
-													<div class="field-value">{value}</div>
+									{#if expandedQuestions.has('legacy')}
+										<div class="toggle-content" transition:slide={{ duration: 150 }}>
+											{#each Object.entries(entry.data) as [key, value]}
+												{@const isLegacy = !template.fieldIds.includes(key)}
+												{#if isLegacy && value}
+													<div class="field-block">
+														<div class="field-label">{getLegacyFieldLabel(key)}</div>
+														<div class="field-value">{value}</div>
 												</div>
 											{/if}
 										{/each}

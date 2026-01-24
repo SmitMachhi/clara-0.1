@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getEntryByDate } from '$lib/db.js';
+import { getEntryByDate, getTemplateById } from '$lib/db.js';
 import { decrypt } from '$lib/server/crypto.js';
 
 export const GET: RequestHandler = async ({ params }) => {
@@ -12,6 +12,12 @@ export const GET: RequestHandler = async ({ params }) => {
 
 	const encryptedStr = entry.rawData.toString('utf8');
 	const data = JSON.parse(decrypt(encryptedStr));
+	const templateId = entry.template_id;
+	const template = templateId ? getTemplateById(templateId) : null;
+
+	if (!template) {
+		throw error(500, 'Failed to load template');
+	}
 
 	return json({
 		id: entry.id,
@@ -20,7 +26,9 @@ export const GET: RequestHandler = async ({ params }) => {
 		location_id: entry.location_id,
 		captured_lat: entry.captured_lat,
 		captured_lng: entry.captured_lng,
+		template_id: templateId,
 		created_at: entry.created_at,
-		data
+		data,
+		template: template.parsed
 	});
 };

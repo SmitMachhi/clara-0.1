@@ -1,6 +1,9 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { decrypt, encrypt } from '$lib/server/crypto.js';
+import { parseTemplateSource, serializeDefaultTemplate } from './template';
+import type { TemplateModel } from './template';
 
 // Database path - use /data for production (Fly.io volume), local for dev
 const DATA_DIR = process.env.NODE_ENV === 'production' ? '/data' : './data';
@@ -35,8 +38,16 @@ function getDbInternal(): Database.Database {
 			location_id INTEGER,
 			captured_lat REAL,
 			captured_lng REAL,
+			template_id INTEGER,
 			encrypted_data BLOB NOT NULL,
 			created_at TEXT DEFAULT (datetime('now'))
+		);
+
+		CREATE TABLE IF NOT EXISTS templates (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			created_at TEXT DEFAULT (datetime('now')),
+			source_text_encrypted BLOB NOT NULL,
+			parsed_json TEXT NOT NULL
 		);
 
 		CREATE TABLE IF NOT EXISTS locations (
@@ -71,6 +82,15 @@ function getDbInternal(): Database.Database {
 			ALTER TABLE entries ADD COLUMN captured_lng REAL;
 		`);
 	}
+
+	if (!entriesColumns.includes('template_id')) {
+		db.exec(`
+			ALTER TABLE entries ADD COLUMN template_id INTEGER;
+		`);
+	}
+
+	const activeTemplateId = ensureActiveTemplate();
+	backfillEntryTemplateIds(activeTemplateId);
 	
 	return db;
 }
@@ -120,6 +140,7 @@ export interface Entry {
 	location_name?: string;
 	captured_lat: number | null;
 	captured_lng: number | null;
+	template_id: number | null;
 	created_at: string;
 }
 
@@ -135,6 +156,7 @@ export function saveEntry(
 	timestamp: string, 
 	locationId: number | null, 
 	encryptedData: string,
+	templateId: number | null,
 	capturedLat?: number | null,
 	capturedLng?: number | null
 ): number {
@@ -142,9 +164,9 @@ export function saveEntry(
 	const dataBuffer = Buffer.from(encryptedData, 'utf8');
 	
 	const result = database.prepare(`
-		INSERT INTO entries (date, timestamp, location_id, captured_lat, captured_lng, encrypted_data)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`).run(date, timestamp, locationId, capturedLat ?? null, capturedLng ?? null, dataBuffer);
+		INSERT INTO entries (date, timestamp, location_id, captured_lat, captured_lng, template_id, encrypted_data)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`).run(date, timestamp, locationId, capturedLat ?? null, capturedLng ?? null, templateId, dataBuffer);
 	
 	return result.lastInsertRowid as number;
 }
@@ -157,6 +179,7 @@ export function updateEntry(
 	timestamp: string, 
 	locationId: number | null, 
 	encryptedData: string,
+	templateId: number | null,
 	capturedLat?: number | null,
 	capturedLng?: number | null
 ): boolean {
@@ -165,9 +188,9 @@ export function updateEntry(
 	
 	const result = database.prepare(`
 		UPDATE entries 
-		SET timestamp = ?, location_id = ?, captured_lat = ?, captured_lng = ?, encrypted_data = ?
+		SET timestamp = ?, location_id = ?, captured_lat = ?, captured_lng = ?, template_id = ?, encrypted_data = ?
 		WHERE date = ?
-	`).run(timestamp, locationId, capturedLat ?? null, capturedLng ?? null, dataBuffer, date);
+	`).run(timestamp, locationId, capturedLat ?? null, capturedLng ?? null, templateId, dataBuffer, date);
 	
 	return result.changes > 0;
 }
@@ -178,7 +201,7 @@ export function updateEntry(
 export function getAllEntries(): Entry[] {
 	const database = getDb();
 	return database.prepare(`
-		SELECT e.id, e.date, e.timestamp, e.location_id, e.captured_lat, e.captured_lng, e.created_at, l.name as location_name
+		SELECT e.id, e.date, e.timestamp, e.location_id, e.captured_lat, e.captured_lng, e.template_id, e.created_at, l.name as location_name
 		FROM entries e
 		LEFT JOIN locations l ON e.location_id = l.id
 		ORDER BY e.date DESC
@@ -191,7 +214,7 @@ export function getAllEntries(): Entry[] {
 export function getEntryByDate(date: string): (EntryWithData & { rawData: Buffer }) | null {
 	const database = getDb();
 	const row = database.prepare(`
-		SELECT e.id, e.date, e.timestamp, e.location_id, e.captured_lat, e.captured_lng, e.encrypted_data, e.created_at, l.name as location_name
+		SELECT e.id, e.date, e.timestamp, e.location_id, e.captured_lat, e.captured_lng, e.template_id, e.encrypted_data, e.created_at, l.name as location_name
 		FROM entries e
 		LEFT JOIN locations l ON e.location_id = l.id
 		WHERE e.date = ?
@@ -208,6 +231,7 @@ export function getEntryByDate(date: string): (EntryWithData & { rawData: Buffer
 		captured_lat: row.captured_lat,
 		rawData: row.encrypted_data,
 		captured_lng: row.captured_lng,
+		template_id: row.template_id,
 		created_at: row.created_at,
 		data: {} as any
 	};
@@ -218,6 +242,91 @@ export function getEntryByDate(date: string): (EntryWithData & { rawData: Buffer
  */
 export function getDb(): Database.Database {
 	return getDbInternal();
+}
+
+export function createTemplateVersion(sourceText: string, parsed: TemplateModel): number {
+	const database = getDb();
+	const encrypted = encrypt(sourceText);
+	const encryptedBuffer = Buffer.from(encrypted, 'utf8');
+	const parsedJson = JSON.stringify(parsed);
+	const result = database.prepare(`
+		INSERT INTO templates (source_text_encrypted, parsed_json)
+		VALUES (?, ?)
+	`).run(encryptedBuffer, parsedJson);
+	return result.lastInsertRowid as number;
+}
+
+export function setActiveTemplate(id: number): void {
+	const database = getDb();
+	database.prepare(`
+		INSERT INTO config (key, value)
+		VALUES ('active_template_id', ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value
+	`).run(id.toString());
+}
+
+export function getTemplateById(id: number): { id: number; sourceText: string; parsed: TemplateModel } | null {
+	const database = getDb();
+	const row = database.prepare(`
+		SELECT id, source_text_encrypted, parsed_json
+		FROM templates
+		WHERE id = ?
+	`).get(id) as { id: number; source_text_encrypted: Buffer; parsed_json: string } | undefined;
+
+	if (!row) return null;
+
+	const decrypted = decrypt(row.source_text_encrypted.toString('utf8'));
+	return {
+		id: row.id,
+		sourceText: decrypted,
+		parsed: JSON.parse(row.parsed_json) as TemplateModel
+	};
+}
+
+export function getActiveTemplate(): { id: number; sourceText: string; parsed: TemplateModel } | null {
+	const database = getDb();
+	const row = database.prepare(`
+		SELECT value
+		FROM config
+		WHERE key = 'active_template_id'
+	`).get() as { value: string } | undefined;
+
+	if (!row?.value) return null;
+	const templateId = Number(row.value);
+	if (!Number.isFinite(templateId)) return null;
+	return getTemplateById(templateId);
+}
+
+export function ensureActiveTemplate(): number {
+	const database = getDb();
+	const existing = getActiveTemplate();
+	if (existing) return existing.id;
+
+	const templateCount = database.prepare('SELECT COUNT(1) as count FROM templates').get() as { count: number };
+	if (templateCount.count > 0) {
+		const row = database.prepare('SELECT id FROM templates ORDER BY id ASC LIMIT 1').get() as { id: number };
+		setActiveTemplate(row.id);
+		return row.id;
+	}
+
+	const sourceText = serializeDefaultTemplate();
+	const parseResult = parseTemplateSource(sourceText);
+	if (parseResult.errors.length > 0) {
+		throw new Error('Default template failed validation');
+	}
+	const parsed = parseResult.parsed;
+	const id = createTemplateVersion(sourceText, parsed);
+	setActiveTemplate(id);
+	return id;
+}
+
+export function backfillEntryTemplateIds(activeTemplateId: number): void {
+	const database = getDb();
+	database.prepare(`
+		UPDATE entries
+		SET template_id = ?
+		WHERE template_id IS NULL
+	`).run(activeTemplateId);
 }
 
 /**
