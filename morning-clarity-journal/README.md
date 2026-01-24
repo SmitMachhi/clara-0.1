@@ -42,6 +42,11 @@ npm run preview
 1. Install [flyctl](https://fly.io/docs/hands-on/install-flyctl/)
 2. Create a Fly.io account and login: `fly auth login`
 
+### HTTPS
+
+- Fly.io provides HTTPS by default for public apps
+- The app enforces HTTPS in production using the `x-forwarded-proto` header and redirects HTTP to HTTPS
+
 ### Deploy
 
 ```bash

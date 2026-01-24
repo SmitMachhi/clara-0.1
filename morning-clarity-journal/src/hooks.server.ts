@@ -2,6 +2,13 @@ import type { Handle } from '@sveltejs/kit';
 import { verifySessionToken } from '$lib/auth.js';
 
 export const handle: Handle = async ({ event, resolve }) => {
+	const forwardedProto = event.request.headers.get('x-forwarded-proto');
+	if (process.env.NODE_ENV === 'production' && forwardedProto && forwardedProto !== 'https') {
+		const httpsUrl = new URL(event.url);
+		httpsUrl.protocol = 'https:';
+		return Response.redirect(httpsUrl.toString(), 308);
+	}
+
 	if (event.url.pathname.startsWith('/api/')) {
 		const excludedRoutes = ['/api/auth', '/api/session'];
 		
