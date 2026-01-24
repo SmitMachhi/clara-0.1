@@ -689,3 +689,9 @@ Step 2: Switched encryption key derivation to PBKDF2, added legacy decrypt suppo
 Step 3: Added security headers to all responses in `src/hooks.server.ts`, including production-only HSTS/CSP. Ran `npx svelte-check --threshold error` (0 errors, 2 warnings).
 Step 4: Added rate limiting to `/api/session` with auth failure tracking and retry headers in `src/routes/api/session/+server.ts`. Ran `npx svelte-check --threshold error` (0 errors, 2 warnings).
 Step 5: Added logout endpoint in `src/routes/api/auth/logout/+server.ts` and allowed unauthenticated access by updating `src/hooks.server.ts`. Ran `npx svelte-check --threshold error` (0 errors, 2 warnings).
+Post-review fix: Made encryption key migration idempotent per-row to handle fresh DBs and partial retries safely in `src/lib/db.ts`. Ran `npx svelte-check --threshold error` (0 errors, 2 warnings).
+Step 6: Added authenticated data export endpoint in `src/routes/api/export/+server.ts`. Ran `npx svelte-check --threshold error` (0 errors, 2 warnings).
+Step 7: Added authenticated data wipe endpoint in `src/routes/api/wipe/+server.ts`. Ran `npx svelte-check --threshold error` (0 errors, 2 warnings).
+Step 8: Sanitized server-side backup error logging in `src/routes/api/backup/+server.ts`. Ran `npx svelte-check --threshold error` (0 errors, 2 warnings).
+Step 9: Updated `.env.example` with placeholder values and generation guidance. Ran `npx svelte-check --threshold error` (0 errors, 2 warnings).
+Step 10: Made legacy plaintext location columns nullable/defaulted and simplified `addLocation` placeholders in `src/lib/db.ts`. Ran `npx svelte-check --threshold error` (0 errors, 2 warnings).

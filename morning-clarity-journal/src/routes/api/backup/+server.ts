@@ -57,7 +57,7 @@ export const POST: RequestHandler = async () => {
 			created: latest?.created.toISOString() || new Date().toISOString()
 		});
 	} catch (error) {
-		console.error('Backup error:', error);
+		console.error('Backup error:', error instanceof Error ? error.message : 'Unknown error');
 		return errorResponse('Failed to create backup', 500);
 	}
 };

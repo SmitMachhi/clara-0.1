@@ -66,9 +66,9 @@ function getDbInternal(): Database.Database {
 
 		CREATE TABLE IF NOT EXISTS locations (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT NOT NULL,
-			lat REAL NOT NULL,
-			lng REAL NOT NULL,
+			name TEXT DEFAULT '',
+			lat REAL DEFAULT 0,
+			lng REAL DEFAULT 0,
 			address TEXT,
 			name_encrypted BLOB NOT NULL,
 			lat_encrypted BLOB NOT NULL,
@@ -575,12 +575,8 @@ export function addLocation(name: string, lat: number, lng: number, address?: st
 	const addressEncrypted = encryptOptionalString(address ?? null);
 	const result = database.prepare(`
 		INSERT INTO locations (name, lat, lng, address, name_encrypted, lat_encrypted, lng_encrypted, address_encrypted)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES ('', 0, 0, NULL, ?, ?, ?, ?)
 	`).run(
-		EMPTY_TEXT_PLACEHOLDER,
-		EMPTY_COORDINATE_PLACEHOLDER,
-		EMPTY_COORDINATE_PLACEHOLDER,
-		null,
 		nameEncrypted,
 		latEncrypted,
 		lngEncrypted,
@@ -733,6 +729,21 @@ function migrateEncryptedDataToNewKey(database: Database.Database): void {
 	if (migrationDone?.value === 'true') return;
 
 	const migrate = database.transaction(() => {
+		const reEncryptRow = (blob: Buffer): Buffer => {
+			const stored = blob.toString('utf8');
+			try {
+				const plaintext = decryptWithLegacyKey(stored);
+				return Buffer.from(encrypt(plaintext), 'utf8');
+			} catch {
+				try {
+					decrypt(stored);
+					return blob;
+				} catch {
+					throw new Error('Encrypted data unreadable with both legacy and current keys');
+				}
+			}
+		};
+
 		const entries = database.prepare(
 			'SELECT id, encrypted_data, captured_lat_encrypted, captured_lng_encrypted FROM entries'
 		).all() as Array<{
@@ -745,22 +756,9 @@ function migrateEncryptedDataToNewKey(database: Database.Database): void {
 			'UPDATE entries SET encrypted_data = ?, captured_lat_encrypted = ?, captured_lng_encrypted = ? WHERE id = ?'
 		);
 		for (const row of entries) {
-			const newData = Buffer.from(
-				encrypt(decryptWithLegacyKey(row.encrypted_data.toString('utf8'))),
-				'utf8'
-			);
-			const newLat = row.captured_lat_encrypted
-				? Buffer.from(
-					encrypt(decryptWithLegacyKey(row.captured_lat_encrypted.toString('utf8'))),
-					'utf8'
-				)
-				: null;
-			const newLng = row.captured_lng_encrypted
-				? Buffer.from(
-					encrypt(decryptWithLegacyKey(row.captured_lng_encrypted.toString('utf8'))),
-					'utf8'
-				)
-				: null;
+			const newData = reEncryptRow(row.encrypted_data);
+			const newLat = row.captured_lat_encrypted ? reEncryptRow(row.captured_lat_encrypted) : null;
+			const newLng = row.captured_lng_encrypted ? reEncryptRow(row.captured_lng_encrypted) : null;
 			updateEntry.run(newData, newLat, newLng, row.id);
 		}
 
@@ -777,30 +775,10 @@ function migrateEncryptedDataToNewKey(database: Database.Database): void {
 			'UPDATE locations SET name_encrypted = ?, lat_encrypted = ?, lng_encrypted = ?, address_encrypted = ? WHERE id = ?'
 		);
 		for (const row of locations) {
-			const newName = row.name_encrypted
-				? Buffer.from(
-					encrypt(decryptWithLegacyKey(row.name_encrypted.toString('utf8'))),
-					'utf8'
-				)
-				: null;
-			const newLat = row.lat_encrypted
-				? Buffer.from(
-					encrypt(decryptWithLegacyKey(row.lat_encrypted.toString('utf8'))),
-					'utf8'
-				)
-				: null;
-			const newLng = row.lng_encrypted
-				? Buffer.from(
-					encrypt(decryptWithLegacyKey(row.lng_encrypted.toString('utf8'))),
-					'utf8'
-				)
-				: null;
-			const newAddr = row.address_encrypted
-				? Buffer.from(
-					encrypt(decryptWithLegacyKey(row.address_encrypted.toString('utf8'))),
-					'utf8'
-				)
-				: null;
+			const newName = row.name_encrypted ? reEncryptRow(row.name_encrypted) : null;
+			const newLat = row.lat_encrypted ? reEncryptRow(row.lat_encrypted) : null;
+			const newLng = row.lng_encrypted ? reEncryptRow(row.lng_encrypted) : null;
+			const newAddr = row.address_encrypted ? reEncryptRow(row.address_encrypted) : null;
 			updateLocation.run(newName, newLat, newLng, newAddr, row.id);
 		}
 
@@ -815,14 +793,8 @@ function migrateEncryptedDataToNewKey(database: Database.Database): void {
 			'UPDATE templates SET source_text_encrypted = ?, parsed_json_encrypted = ? WHERE id = ?'
 		);
 		for (const row of templates) {
-			const newSource = Buffer.from(
-				encrypt(decryptWithLegacyKey(row.source_text_encrypted.toString('utf8'))),
-				'utf8'
-			);
-			const newParsed = Buffer.from(
-				encrypt(decryptWithLegacyKey(row.parsed_json_encrypted.toString('utf8'))),
-				'utf8'
-			);
+			const newSource = reEncryptRow(row.source_text_encrypted);
+			const newParsed = reEncryptRow(row.parsed_json_encrypted);
 			updateTemplate.run(newSource, newParsed, row.id);
 		}
 
@@ -837,14 +809,8 @@ function migrateEncryptedDataToNewKey(database: Database.Database): void {
 			'UPDATE template_presets SET source_text_encrypted = ?, parsed_json_encrypted = ? WHERE id = ?'
 		);
 		for (const row of presets) {
-			const newSource = Buffer.from(
-				encrypt(decryptWithLegacyKey(row.source_text_encrypted.toString('utf8'))),
-				'utf8'
-			);
-			const newParsed = Buffer.from(
-				encrypt(decryptWithLegacyKey(row.parsed_json_encrypted.toString('utf8'))),
-				'utf8'
-			);
+			const newSource = reEncryptRow(row.source_text_encrypted);
+			const newParsed = reEncryptRow(row.parsed_json_encrypted);
 			updatePreset.run(newSource, newParsed, row.id);
 		}
 
