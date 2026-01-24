@@ -74,6 +74,7 @@ fly deploy
 - Session stored in httpOnly cookie (24h expiry)
 - Rate limiting on authentication endpoints (5 attempts per 15 minutes)
 - Database stored on encrypted volume in production
+- Rotate `JOURNAL_SESSION_SECRET` if `cookies.txt` or `data/journal.db*` was ever committed
 
 ## Environment Variables
 
@@ -82,6 +83,7 @@ All three environment variables are required in production:
 - `JOURNAL_PASSPHRASE` - Password to unlock the journal
 - `JOURNAL_ENCRYPTION_KEY` - AES-256-GCM encryption key (min 32 characters)
 - `JOURNAL_SESSION_SECRET` - Secret for signing session cookies (min 32 characters)
+Optional: set `VITE_ENABLE_TIME_CUTOFF=true` (or `JOURNAL_ENABLE_TIME_CUTOFF=true` on the server) to enforce the 14:00 cutoff.
 
 ## License
 

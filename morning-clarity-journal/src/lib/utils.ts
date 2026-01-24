@@ -54,10 +54,16 @@ export function formatDateISO(date: Date): string {
 
 /**
  * Check if current time is past 2pm (14:00)
- * Can be disabled for development by setting VITE_DISABLE_TIME_CUTOFF=true
+ * Can be enabled for production by setting VITE_ENABLE_TIME_CUTOFF=true
+ * or JOURNAL_ENABLE_TIME_CUTOFF=true (server-only).
  */
 export function isPastCutoff(date: Date = new Date()): boolean {
-	if (import.meta.env.VITE_DISABLE_TIME_CUTOFF === 'true') {
+	const isEnabled =
+		import.meta.env.VITE_ENABLE_TIME_CUTOFF === 'true' ||
+		import.meta.env.PUBLIC_ENABLE_TIME_CUTOFF === 'true' ||
+		(import.meta.env.SSR && process.env.JOURNAL_ENABLE_TIME_CUTOFF === 'true');
+
+	if (!isEnabled) {
 		return false;
 	}
 	return date.getHours() >= TIME.CUTOFF_HOUR;
