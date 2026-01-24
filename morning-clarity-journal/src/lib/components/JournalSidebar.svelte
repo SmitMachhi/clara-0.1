@@ -33,6 +33,9 @@
 		onViewEntry: (date: string) => void;
 	} = $props();
 
+	const stats = $derived(calculateStats(entryDates, yearDates));
+	const recentEntries = $derived(getRecentEntries(yearDates, entryDates, entries));
+
 	function getDayStatus(dateStr: string): 'completed' | 'missed' | 'future' | 'today' {
 		if (isToday(dateStr)) return 'today';
 		if (entryDates.includes(dateStr)) return 'completed';
@@ -54,7 +57,7 @@
 		<div class="sidebar-header">
 			<div>
 				<h2 class="sidebar-title">{currentYear}</h2>
-				<div class="sidebar-stats">{calculateStats(entryDates, yearDates).completedCount} of {calculateStats(entryDates, yearDates).total} days</div>
+				<div class="sidebar-stats">{stats.completedCount} of {stats.total} days</div>
 			</div>
 			<button
 				class="settings-btn"
@@ -85,7 +88,7 @@
 
 		<h3 class="recent-heading">Recent</h3>
 		<div class="recent">
-			{#each getRecentEntries(yearDates, entryDates, entries) as item}
+			{#each recentEntries as item}
 				{@const dateObj = new Date(item.date + 'T12:00:00')}
 				{@const dayOfWeek = dateObj.toLocaleDateString('en-US', { weekday: 'short' })}
 				{@const monthDay = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}

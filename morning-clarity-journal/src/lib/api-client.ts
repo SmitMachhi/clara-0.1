@@ -1,11 +1,17 @@
-import { PUBLIC_API_TOKEN } from '$env/static/public';
+const SESSION_FLAG_KEY = 'mcj-session-present';
 
-/**
- * Authenticated fetch wrapper - adds Bearer token to all API requests
- */
+export function setSessionFlag(): void {
+	sessionStorage.setItem(SESSION_FLAG_KEY, '1');
+}
+
+export function clearSessionFlag(): void {
+	sessionStorage.removeItem(SESSION_FLAG_KEY);
+}
+
+export function hasSessionFlag(): boolean {
+	return sessionStorage.getItem(SESSION_FLAG_KEY) === '1';
+}
+
 export function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
-	const headers = new Headers(options.headers);
-	headers.set('Authorization', `Bearer ${PUBLIC_API_TOKEN}`);
-
-	return fetch(url, { ...options, headers });
+	return fetch(url, { ...options, credentials: 'same-origin' });
 }

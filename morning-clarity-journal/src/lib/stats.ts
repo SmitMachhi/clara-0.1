@@ -24,12 +24,14 @@ export function getRecentEntries(
 	entries: any[], 
 	limit: number = DISPLAY.RECENT_ENTRIES_LIMIT
 ): RecentEntry[] {
+	const entriesByDate = new Map(entries.map(entry => [entry.date, entry]));
+
 	return yearDates
 		.filter(d => isDateInPast(d) || isToday(d))
 		.map(d => ({
 			date: d,
 			completed: entryDates.includes(d),
-			entry: entries.find(e => e.date === d)
+			entry: entriesByDate.get(d)
 		}))
 		.reverse()
 		.slice(0, limit);

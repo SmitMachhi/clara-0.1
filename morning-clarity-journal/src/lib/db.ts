@@ -186,34 +186,9 @@ export function getAllEntries(): Entry[] {
 }
 
 /**
- * Get all entries with encrypted data (for CSV export, client will decrypt)
- */
-export function getAllEntriesDecrypted(): EntryWithData[] {
-	const database = getDb();
-	const rows = database.prepare(`
-		SELECT e.id, e.date, e.timestamp, e.location_id, e.captured_lat, e.captured_lng, e.encrypted_data, e.created_at, l.name as location_name
-		FROM entries e
-		LEFT JOIN locations l ON e.location_id = l.id
-		ORDER BY e.date DESC
-	`).all() as (Entry & { encrypted_data: Buffer })[];
-
-	return rows.map(row => ({
-		id: row.id,
-		date: row.date,
-		timestamp: row.timestamp,
-		location_id: row.location_id,
-		location_name: row.location_name,
-		captured_lat: row.captured_lat,
-		captured_lng: row.captured_lng,
-		created_at: row.created_at,
-		data: row.encrypted_data.toString('utf8') as any
-	}));
-}
-
-/**
  * Get an entry by date with encrypted data (client will decrypt)
  */
-export function getEntryByDate(date: string): EntryWithData | null {
+export function getEntryByDate(date: string): (EntryWithData & { rawData: Buffer }) | null {
 	const database = getDb();
 	const row = database.prepare(`
 		SELECT e.id, e.date, e.timestamp, e.location_id, e.captured_lat, e.captured_lng, e.encrypted_data, e.created_at, l.name as location_name
@@ -221,11 +196,9 @@ export function getEntryByDate(date: string): EntryWithData | null {
 		LEFT JOIN locations l ON e.location_id = l.id
 		WHERE e.date = ?
 	`).get(date) as (Entry & { encrypted_data: Buffer }) | undefined;
-	
+
 	if (!row) return null;
-	
-	const encryptedJson = row.encrypted_data.toString('utf8');
-	
+
 	return {
 		id: row.id,
 		date: row.date,
@@ -233,14 +206,15 @@ export function getEntryByDate(date: string): EntryWithData | null {
 		location_id: row.location_id,
 		location_name: row.location_name,
 		captured_lat: row.captured_lat,
+		rawData: row.encrypted_data,
 		captured_lng: row.captured_lng,
 		created_at: row.created_at,
-		data: encryptedJson as any
+		data: {} as any
 	};
 }
 
 /**
- * Get database instance (exported for migration endpoint)
+ * Get database instance
  */
 export function getDb(): Database.Database {
 	return getDbInternal();

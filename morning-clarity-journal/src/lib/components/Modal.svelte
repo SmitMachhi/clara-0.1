@@ -12,11 +12,23 @@
 		children: any;
 	}
 	let { open, title, onclose, children }: Props = $props();
+
+	function handleOverlayKey(event: KeyboardEvent) {
+		if (event.key === 'Enter' || event.key === ' ') {
+			event.preventDefault();
+			onclose();
+		}
+	}
 </script>
 
 {#if open}
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="modal-overlay" onclick={onclose}>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="0"
+		onclick={onclose}
+		onkeydown={handleOverlayKey}
+	>
 		<!-- svelte-ignore a11y_click_events_have_key_events -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="modal" onclick={(e) => e.stopPropagation()}>
@@ -46,7 +58,7 @@
 		padding: 24px;
 	}
 
-	.dark .modal-overlay {
+	:global(.dark) .modal-overlay {
 		background: rgba(0, 0, 0, 0.7);
 	}
 
@@ -63,7 +75,7 @@
 		overflow: hidden;
 	}
 
-	.dark .modal {
+	:global(.dark) .modal {
 		background: #2f2f2f;
 		box-shadow: var(--shadow-md-dark);
 	}
@@ -111,7 +123,7 @@
 		color: var(--text);
 	}
 
-	.dark .modal-close-btn:hover {
+	:global(.dark) .modal-close-btn:hover {
 		background: rgba(255, 255, 255, 0.08);
 	}
 

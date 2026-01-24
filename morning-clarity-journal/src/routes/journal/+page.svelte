@@ -1,18 +1,23 @@
+<!-- purpose: Journal entry capture page -->
+<!-- context: Daily morning journaling flow and routing guard -->
+<!-- location: src/routes/journal/+page.svelte -->
+
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { getEmptyJournalData, journalTemplate, type JournalData } from '$lib/template.js';
+	import { getEmptyJournalData, journalTemplate } from '$lib/template.js';
 	import { formatDateISO, isPastCutoff, getYearDates, getDateTimeParts } from '$lib/utils.js';
 	import type { Location, Entry } from '$lib/db.js';
 	import { TIME } from '$lib/constants.js';
 	import { fetchLocations, fetchEntries, captureGps } from '$lib/journal-actions.js';
-	import { encryptClient, decryptClient } from '$lib/crypto.js';
 	import { apiFetch } from '$lib/api-client.js';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import JournalForm from '$lib/components/JournalForm.svelte';
 	import JournalSidebar from '$lib/components/JournalSidebar.svelte';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
-	import Icon from '$lib/components/Icons.svelte';
+
+	const DRAFT_STORAGE_KEY = 'mcj-draft';
+	const DRAFT_DEBOUNCE_MS = 300;
 
 	let formData = $state(getEmptyJournalData());
 	let locations = $state<Location[]>([]);
@@ -30,15 +35,10 @@
 	let dateParts = $state(getDateTimeParts(new Date()));
 	let sidebarOpen = $state(false);
 	let settingsOpen = $state(false);
-	let isDarkMode = $state(false);
 	let isLoadingData = $state(true);
-	let passphrase = $state('');
-	let needsMigration = $state(false);
-	let legacyPassphrase = $state('');
-	let isMigrating = $state(false);
-	let migrationError = $state('');
-	let migrationProgress = $state({ current: 0, total: 0 });
-
+	let loadError = $state('');
+	let isMounted = $state(false);
+	let draftSaveTimeout: ReturnType<typeof setTimeout> | null = null;
 	const today = formatDateISO(new Date());
 	const currentYear = new Date().getFullYear();
 	const yearDates = getYearDates(currentYear);
@@ -49,6 +49,7 @@
 	let isComplete = $derived(completedFields === totalFields);
 
 	onMount(() => {
+		isMounted = true;
 		document.documentElement.classList.add('ritual');
 		isPastTime = isPastCutoff();
 		const interval = setInterval(() => {
@@ -56,64 +57,79 @@
 			isPastTime = isPastCutoff();
 		}, TIME.CLOCK_UPDATE_INTERVAL_MS);
 
-		const storedPassphrase = localStorage.getItem('journal-passphrase');
-		if (!storedPassphrase) {
-			goto('/');
-			return;
-		}
-		passphrase = storedPassphrase;
+		const beforeUnloadHandler = (event: BeforeUnloadEvent) => {
+			if (completedFields > 0 && !hasEntryToday) {
+				event.preventDefault();
+				event.returnValue = '';
+			}
+		};
+
+		window.addEventListener('beforeunload', beforeUnloadHandler);
+
+		apiFetch('/api/session')
+			.then(res => {
+				if (res.status === 401) goto('/');
+			})
+			.catch(() => goto('/'));
 
 		loadAllData()
-			.then(() => {
+			.then(ok => {
+				if (!ok) return;
 				hasEntryToday = entryDates.includes(today);
+				restoreDraft();
 			})
 			.catch(console.error);
 
 		return () => {
 			clearInterval(interval);
-			document.documentElement.classList.remove('ritual', 'dark');
+			window.removeEventListener('beforeunload', beforeUnloadHandler);
+			if (draftSaveTimeout) {
+				clearTimeout(draftSaveTimeout);
+			}
+			document.documentElement.classList.remove('ritual');
 		};
 	});
 
-	async function loadLocations() {
+	async function loadLocations(): Promise<boolean> {
 		try {
 			locations = await fetchLocations();
+			return true;
 		} catch (err) {
 			console.error('Failed to load locations', err);
+			return false;
 		}
 	}
 
-	async function loadEntries() {
+	async function loadEntries(): Promise<boolean> {
 		try {
 			const data = await fetchEntries();
 			entries = data.entries;
 			entryDates = data.entryDates;
-
-			if (entries.length > 0) {
-				const sampleEntry = await apiFetch(`/api/entries/${entries[0].date}`);
-				if (sampleEntry.ok) {
-					const entryData = await sampleEntry.json();
-					const encrypted = entryData.encryption;
-					if (encrypted && encrypted.version === 2) {
-						try {
-							await decryptClient(encrypted, passphrase);
-						} catch {
-							needsMigration = true;
-						}
-					} else {
-						needsMigration = true;
-					}
-				}
-			}
+			return true;
 		} catch (err) {
 			console.error('Failed to load entries', err);
+			return false;
 		}
 	}
 
-	async function loadAllData() {
+	async function loadAllData(): Promise<boolean> {
 		isLoadingData = true;
-		await Promise.all([loadLocations(), loadEntries()]);
+		loadError = '';
+		const [locationsOk, entriesOk] = await Promise.all([loadLocations(), loadEntries()]);
 		isLoadingData = false;
+		if (!locationsOk || !entriesOk) {
+			loadError = 'Failed to load journal data.';
+			return false;
+		}
+		return true;
+	}
+
+	async function retryLoad() {
+		const ok = await loadAllData();
+		if (ok) {
+			hasEntryToday = entryDates.includes(today);
+			restoreDraft();
+		}
 	}
 
 	async function handleSubmit() {
@@ -122,21 +138,23 @@
 		saveError = '';
 
 		try {
-			const dataJson = JSON.stringify(formData);
-			const encryption = await encryptClient(dataJson, passphrase);
-
 			const res = await apiFetch('/api/entries', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					locationId: selectedLocationId,
-					encryption,
+					data: formData,
 					capturedLat: selectedLocationId ? null : capturedLat,
 					capturedLng: selectedLocationId ? null : capturedLng
 				})
 			});
 
 			if (res.ok) {
+				try {
+					sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+				} catch (err) {
+					console.error('Failed to clear draft', err);
+				}
 				goto(`/entry/${today}`);
 			} else {
 				const data = await res.json();
@@ -147,68 +165,6 @@
 		} finally {
 			isSaving = false;
 		}
-	}
-
-	async function performMigration() {
-		if (!legacyPassphrase || !passphrase) return;
-
-		isMigrating = true;
-		migrationError = '';
-		migrationProgress = { current: 0, total: entries.length };
-
-		const migratedEntries: { date: string; timestamp: string; encryptedData: string }[] = [];
-
-		for (const entry of entries) {
-			try {
-				const res = await apiFetch(`/api/entries/${entry.date}`);
-				const entryData = await res.json();
-				const encrypted = entryData.encryption;
-
-				if (encrypted && encrypted.version === 2) {
-					try {
-						await decryptClient(encrypted, passphrase);
-						migrationProgress.current++;
-						continue;
-					} catch {
-						// Current passphrase failed; try legacy password
-					}
-				}
-
-				// Decrypt with legacy password, re-encrypt with new passphrase
-				const decrypted = await decryptClient(encrypted, legacyPassphrase);
-				const journalData = JSON.parse(decrypted) as JournalData;
-				const newEncrypted = await encryptClient(JSON.stringify(journalData), passphrase);
-
-				migratedEntries.push({
-					date: entry.date,
-					timestamp: entry.timestamp,
-					encryptedData: JSON.stringify(newEncrypted)
-				});
-
-				migrationProgress.current++;
-			} catch (err) {
-				console.error(`Failed to migrate entry ${entry.date}:`, err);
-			}
-		}
-
-		if (migratedEntries.length > 0) {
-			const res = await apiFetch('/api/entries/migrate', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ entries: migratedEntries })
-			});
-
-			if (!res.ok) {
-				const data = await res.json();
-				migrationError = data.error || 'Migration failed';
-				isMigrating = false;
-				return;
-			}
-		}
-
-		needsMigration = false;
-		isMigrating = false;
-		await loadAllData();
 	}
 
 	function captureCurrentLocation() {
@@ -241,52 +197,59 @@
 		gpsError = '';
 	}
 
-	function toggleTheme() {
-		isDarkMode = !isDarkMode;
-		document.documentElement.classList.toggle('dark', isDarkMode);
+	function restoreDraft() {
+		if (hasEntryToday) return;
+		const rawDraft = sessionStorage.getItem(DRAFT_STORAGE_KEY);
+		if (!rawDraft) return;
+
+		try {
+			const parsedDraft = JSON.parse(rawDraft);
+			if (parsedDraft && typeof parsedDraft === 'object') {
+				formData = { ...formData, ...parsedDraft };
+			}
+		} catch (err) {
+			console.error('Failed to restore draft', err);
+		}
 	}
 
 	$effect(() => {
 		if (hasEntryToday) goto(`/entry/${today}`);
 	});
+
+	$effect(() => {
+		if (!isMounted || hasEntryToday) return;
+
+		if (draftSaveTimeout) {
+			clearTimeout(draftSaveTimeout);
+		}
+
+		draftSaveTimeout = setTimeout(() => {
+			try {
+				sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(formData));
+			} catch (err) {
+				console.error('Failed to save draft', err);
+			}
+		}, DRAFT_DEBOUNCE_MS);
+	});
 </script>
 
-{#if needsMigration}
-	<div class="fixed inset-0 bg-[var(--bg)] flex items-center justify-center p-[var(--space-lg)] z-50">
-		<div class="w-full max-w-md">
-			<h2 class="text-xl text-[var(--text)] mb-[var(--space-lg)] text-center">Migration Required</h2>
-			<p class="text-[var(--text-muted)] text-sm mb-[var(--space-lg)]">
-				Your entries use old server-side encryption. Enter the old password to migrate them to client-side encryption.
-			</p>
-			<input
-				type="password"
-				bind:value={legacyPassphrase}
-				placeholder="Old password"
-				class="w-full mb-[var(--space-md)]"
-				disabled={isMigrating}
-			/>
-			{#if migrationError}
-				<p class="text-[var(--missed)] text-sm mb-[var(--space-md)]">{migrationError}</p>
-			{/if}
-			{#if isMigrating}
-				<p class="text-[var(--text-muted)] text-sm mb-[var(--space-md)]">
-					Migrating {migrationProgress.current} of {migrationProgress.total} entries...
-				</p>
-			{/if}
-			<button
-				onclick={performMigration}
-				disabled={isMigrating || !legacyPassphrase}
-				class="w-full py-[var(--space-md)] bg-[var(--surface-elevated)] text-[var(--text)] rounded-[var(--radius-md)] transition-colors hover:bg-[var(--border)] disabled:opacity-40 disabled:cursor-not-allowed"
-			>
-				{isMigrating ? 'Migrating...' : 'Migrate'}
-			</button>
-		</div>
-	</div>
-{:else if isLoadingData}
+{#if isLoadingData}
 	<div class="notion-page">
 		<div class="main-area">
 			<main class="content">
 				<div class="message-container"><Spinner /></div>
+			</main>
+		</div>
+	</div>
+{:else if loadError}
+	<div class="notion-page">
+		<div class="main-area">
+			<main class="content">
+				<div class="message-container">
+					<p class="message-title">Unable to load journal</p>
+					<p class="message-text">{loadError}</p>
+					<button type="button" class="primary-btn" onclick={retryLoad}>Retry</button>
+				</div>
 			</main>
 		</div>
 	</div>
@@ -339,9 +302,6 @@
 			onOpenSettings={() => settingsOpen = !settingsOpen}
 			onViewEntry={(date) => goto(`/entry/${date}`)}
 		/>
-		<button class="theme-btn" onclick={toggleTheme} aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
-			<Icon name={isDarkMode ? 'sun' : 'moon'} size={16} />
-		</button>
 	</div>
 {/if}
 <SettingsModal open={settingsOpen} {locations} onclose={() => settingsOpen = false} onLocationsChanged={loadLocations} />

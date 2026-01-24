@@ -41,7 +41,7 @@ export const GET: RequestHandler = async ({ url }) => {
 		}
 	}
 
-	return errorResponse('Invalid action - CSV export removed with client-side encryption');
+	return errorResponse('Invalid action');
 };
 
 export const POST: RequestHandler = async () => {

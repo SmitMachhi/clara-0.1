@@ -133,7 +133,7 @@
 		animation: dropdownFadeIn 0.15s ease;
 	}
 
-	.dark .dropdown-menu {
+	:global(.dark) .dropdown-menu {
 		background: #2f2f2f;
 		box-shadow: var(--shadow-lg-dark);
 	}

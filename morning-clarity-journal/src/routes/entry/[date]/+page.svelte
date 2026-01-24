@@ -10,7 +10,6 @@
 	import type { EntryWithData, JournalData } from '$lib/db.js';
 	import { formatCoordinate } from '$lib/location-utils.js';
 	import { getLegacyFieldLabel } from '$lib/legacy-field-labels.js';
-	import { decryptClient } from '$lib/crypto.js';
 	import { apiFetch } from '$lib/api-client.js';
 	import Icon from '$lib/components/Icons.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
@@ -19,7 +18,6 @@
 	let loading = $state(true);
 	let error = $state('');
 	let expandedQuestions = $state<Set<string>>(new Set());
-	let passphrase = $state('');
 
 	$effect(() => {
 		if ($page.params.date) {
@@ -32,32 +30,19 @@
 		error = '';
 
 		try {
-			const storedPassphrase = localStorage.getItem('journal-passphrase');
-			if (!storedPassphrase) {
+			const res = await apiFetch('/api/session');
+			if (res.status === 401) {
 				goto('/');
 				return;
 			}
-			passphrase = storedPassphrase;
 
-			const res = await apiFetch(`/api/entries/${date}`);
-			if (res.ok) {
-				const apiEntry = await res.json();
-
-				const encrypted = apiEntry.encryption;
-				let decryptedData: JournalData;
-
-				if (encrypted && encrypted.version === 2) {
-					const decryptedJson = await decryptClient(encrypted, passphrase);
-					decryptedData = JSON.parse(decryptedJson) as JournalData;
-				} else {
-					error = 'Entry format not supported';
-					loading = false;
-					return;
-				}
+			const entryRes = await apiFetch(`/api/entries/${date}`);
+			if (entryRes.ok) {
+				const apiEntry = await entryRes.json();
 
 				const loadedEntry = {
 					...apiEntry,
-					data: decryptedData
+					data: apiEntry.data as JournalData
 				};
 				entry = loadedEntry;
 
@@ -71,7 +56,7 @@
 					}
 				}
 				expandedQuestions = questionsWithContent;
-			} else if (res.status === 404) {
+			} else if (entryRes.status === 404) {
 				error = 'Entry not found';
 			} else {
 				error = 'Failed to load entry';

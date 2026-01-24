@@ -64,15 +64,19 @@ fly deploy
 
 ## Security
 
-- Password: `ismathrelatedtoscience`
 - All journal content is encrypted with AES-256-GCM
 - Encryption key derived from password using PBKDF2 (100k iterations)
 - Session stored in httpOnly cookie (24h expiry)
+- Rate limiting on authentication endpoints (5 attempts per 15 minutes)
 - Database stored on encrypted volume in production
 
 ## Environment Variables
 
-No environment variables required. The password and encryption salt are handled internally.
+All three environment variables are required in production:
+
+- `JOURNAL_PASSPHRASE` - Password to unlock the journal
+- `JOURNAL_ENCRYPTION_KEY` - AES-256-GCM encryption key (min 32 characters)
+- `JOURNAL_SESSION_SECRET` - Secret for signing session cookies (min 32 characters)
 
 ## License
 

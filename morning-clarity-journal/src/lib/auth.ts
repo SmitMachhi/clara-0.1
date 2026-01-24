@@ -1,64 +1,120 @@
-import { randomBytes, createHash } from 'crypto';
+import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
+import { env } from '$env/dynamic/private';
 
-// Session store (in-memory for simplicity - sessions reset on server restart)
-const sessions = new Map<string, { expires: Date }>();
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
+const RATE_LIMIT_MAX_ATTEMPTS = 5;
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 
-const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-/**
- * Generate a secure session token
- */
-export function generateSessionToken(): string {
-	return randomBytes(32).toString('hex');
+interface RateLimitEntry {
+	count: number;
+	resetAt: number;
 }
 
-/**
- * Create a new session
- */
-export function createSession(): string {
-	const token = generateSessionToken();
-	const expires = new Date(Date.now() + SESSION_DURATION_MS);
-	sessions.set(token, { expires });
-	return token;
+const rateLimitMap = new Map<string, RateLimitEntry>();
+
+function base64UrlEncode(data: Buffer): string {
+	return data.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
-/**
- * Validate a session token
- */
-export function validateSession(token: string | undefined): boolean {
-	if (!token) return false;
+function base64UrlDecode(str: string): Buffer {
+	const base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+	const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+	return Buffer.from(padded, 'base64');
+}
+
+export function createSessionToken(): { token: string; expiresAt: number } {
+	const nonce = randomBytes(16).toString('hex');
+	const expiresAt = Date.now() + SESSION_DURATION_MS;
+	const payload = JSON.stringify({ exp: expiresAt, nonce });
+	const payloadBase64Url = base64UrlEncode(Buffer.from(payload, 'utf8'));
 	
-	const session = sessions.get(token);
-	if (!session) return false;
-	
-	if (session.expires < new Date()) {
-		sessions.delete(token);
-		return false;
+	const secret = env.JOURNAL_SESSION_SECRET;
+	if (!secret) {
+		throw new Error('JOURNAL_SESSION_SECRET environment variable is not set');
 	}
 	
-	return true;
+	const hmac = createHmac('sha256', secret);
+	hmac.update(payloadBase64Url);
+	const signatureBase64Url = base64UrlEncode(hmac.digest());
+	
+	const token = `${payloadBase64Url}.${signatureBase64Url}`;
+	return { token, expiresAt };
 }
 
-/**
- * Invalidate a session
- */
-export function invalidateSession(token: string): void {
-	sessions.delete(token);
+export function verifySessionToken(token: string | undefined): boolean {
+	if (!token) return false;
+	
+	const parts = token.split('.');
+	if (parts.length !== 2) return false;
+	
+	const [payloadBase64Url, signatureBase64Url] = parts;
+	
+	const secret = env.JOURNAL_SESSION_SECRET;
+	if (!secret) {
+		throw new Error('JOURNAL_SESSION_SECRET environment variable is not set');
+	}
+	
+	const hmac = createHmac('sha256', secret);
+	hmac.update(payloadBase64Url);
+	const expectedSignature = hmac.digest();
+	
+	try {
+		const providedSignature = base64UrlDecode(signatureBase64Url);
+		if (providedSignature.length !== expectedSignature.length) return false;
+		
+		const signaturesMatch = timingSafeEqual(expectedSignature, providedSignature);
+		if (!signaturesMatch) return false;
+		
+		const payloadJson = base64UrlDecode(payloadBase64Url).toString('utf8');
+		const payload = JSON.parse(payloadJson);
+		
+		if (typeof payload.exp !== 'number') return false;
+		if (Date.now() > payload.exp) return false;
+		
+		return true;
+	} catch {
+		return false;
+	}
 }
 
-/**
- * Hash password for comparison (simple comparison for single user)
- */
-export function hashPassword(password: string): string {
-	return createHash('sha256').update(password).digest('hex');
+export function checkAuthRateLimit(ip: string): { ok: boolean; retryAfter?: number } {
+	const entry = rateLimitMap.get(ip);
+	if (!entry) return { ok: true };
+	
+	const now = Date.now();
+	if (now >= entry.resetAt) {
+		rateLimitMap.delete(ip);
+		return { ok: true };
+	}
+	
+	if (entry.count >= RATE_LIMIT_MAX_ATTEMPTS) {
+		const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+		return { ok: false, retryAfter };
+	}
+	
+	return { ok: true };
 }
 
-// The expected password hash
-const EXPECTED_PASSWORD = 'ismathrelatedtoscience';
+export function recordAuthFailure(ip: string): void {
+	const now = Date.now();
+	const entry = rateLimitMap.get(ip);
+	
+	if (!entry || now >= entry.resetAt) {
+		rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+	} else {
+		entry.count++;
+		rateLimitMap.set(ip, entry);
+	}
+}
 
-/**
- * Verify the password
- */
-export function verifyPassword(input: string): boolean {
-	return input === EXPECTED_PASSWORD;
+export function clearAuthFailures(ip: string): void {
+	rateLimitMap.delete(ip);
+}
+
+export function verifyPassphrase(input: string): boolean {
+	const expected = env.JOURNAL_PASSPHRASE;
+	if (!expected) {
+		throw new Error('JOURNAL_PASSPHRASE environment variable is not set');
+	}
+	return input === expected;
 }

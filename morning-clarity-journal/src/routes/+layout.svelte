@@ -23,11 +23,7 @@
 	});
 	
 	function updateTheme() {
-		if (isDark) {
-			document.documentElement.classList.remove('light');
-		} else {
-			document.documentElement.classList.add('light');
-		}
+		document.documentElement.classList.toggle('dark', isDark);
 	}
 	
 	function toggleTheme() {
