@@ -1,0 +1,192 @@
+import { getDb } from './connection.js';
+import { getLocationById, getLocations } from './locations.js';
+import { decryptOptionalNumber, encryptOptionalNumber } from './crypto-helpers.js';
+import type { Entry, EntryWithData } from './types.js';
+export function saveEntry(
+	date: string,
+	timestamp: string,
+	locationId: number | null,
+	encryptedData: string,
+	templateId: number | null,
+	capturedLat?: number | null,
+	capturedLng?: number | null
+): number {
+	const database = getDb();
+	const dataBuffer = Buffer.from(encryptedData, 'utf8');
+	const capturedLatEncrypted = encryptOptionalNumber(capturedLat ?? null);
+	const capturedLngEncrypted = encryptOptionalNumber(capturedLng ?? null);
+	const locationIdEncrypted = encryptOptionalNumber(locationId);
+	const result = database.prepare(`
+		INSERT INTO entries (
+			date, timestamp, location_id, location_id_encrypted,
+			captured_lat, captured_lng, captured_lat_encrypted, captured_lng_encrypted,
+			template_id, encrypted_data
+		)
+		VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+	`).run(
+		date,
+		timestamp,
+		locationIdEncrypted,
+		null,
+		null,
+		capturedLatEncrypted,
+		capturedLngEncrypted,
+		templateId,
+		dataBuffer
+	);
+	return result.lastInsertRowid as number;
+}
+export function updateEntry(
+	date: string,
+	timestamp: string,
+	locationId: number | null,
+	encryptedData: string,
+	templateId: number | null,
+	capturedLat?: number | null,
+	capturedLng?: number | null
+): boolean {
+	const database = getDb();
+	const dataBuffer = Buffer.from(encryptedData, 'utf8');
+	const capturedLatEncrypted = encryptOptionalNumber(capturedLat ?? null);
+	const capturedLngEncrypted = encryptOptionalNumber(capturedLng ?? null);
+	const locationIdEncrypted = encryptOptionalNumber(locationId);
+	const result = database.prepare(`
+		UPDATE entries
+		SET timestamp = ?, location_id = NULL, location_id_encrypted = ?,
+			captured_lat = ?, captured_lng = ?, captured_lat_encrypted = ?,
+			captured_lng_encrypted = ?, template_id = ?, encrypted_data = ?
+		WHERE date = ?
+	`).run(
+		timestamp,
+		locationIdEncrypted,
+		null,
+		null,
+		capturedLatEncrypted,
+		capturedLngEncrypted,
+		templateId,
+		dataBuffer,
+		date
+	);
+	return result.changes > 0;
+}
+export function getAllEntries(): Entry[] {
+	const database = getDb();
+	const rows = database.prepare(`
+		SELECT id, date, timestamp, location_id_encrypted,
+			captured_lat_encrypted, captured_lng_encrypted, template_id, created_at
+		FROM entries
+		ORDER BY date DESC
+	`).all() as Array<{
+		id: number;
+		date: string;
+		timestamp: string;
+		location_id_encrypted: Buffer | null;
+		captured_lat_encrypted: Buffer | null;
+		captured_lng_encrypted: Buffer | null;
+		template_id: number | null;
+		created_at: string;
+	}>;
+	const locations = getLocations();
+	const locationMap = new Map<number, string>();
+	for (const loc of locations) {
+		locationMap.set(loc.id, loc.name);
+	}
+	return rows.map(row => {
+		const locationId = decryptOptionalNumber(row.location_id_encrypted);
+		const locationName = locationId != null ? locationMap.get(locationId) : undefined;
+		return {
+			id: row.id,
+			date: row.date,
+			timestamp: row.timestamp,
+			location_id: locationId,
+			location_name: locationName ?? undefined,
+			captured_lat: decryptOptionalNumber(row.captured_lat_encrypted),
+			captured_lng: decryptOptionalNumber(row.captured_lng_encrypted),
+			template_id: row.template_id,
+			created_at: row.created_at
+		};
+	});
+}
+export function getRecentEntrySummaries(limit: number): Entry[] {
+	const database = getDb();
+	const rows = database.prepare(`
+		SELECT id, date, timestamp, location_id_encrypted, template_id, created_at
+		FROM entries
+		ORDER BY date DESC
+		LIMIT ?
+	`).all(limit) as Array<{
+		id: number;
+		date: string;
+		timestamp: string;
+		location_id_encrypted: Buffer | null;
+		template_id: number | null;
+		created_at: string;
+	}>;
+	const locations = getLocations();
+	const locationMap = new Map<number, string>();
+	for (const loc of locations) {
+		locationMap.set(loc.id, loc.name);
+	}
+	return rows.map(row => {
+		const locationId = decryptOptionalNumber(row.location_id_encrypted);
+		const locationName = locationId != null ? locationMap.get(locationId) : undefined;
+		return {
+			id: row.id,
+			date: row.date,
+			timestamp: row.timestamp,
+			location_id: locationId,
+			location_name: locationName ?? undefined,
+			captured_lat: null,
+			captured_lng: null,
+			template_id: row.template_id,
+			created_at: row.created_at
+		};
+	});
+}
+export function getEntryByDate(date: string): (EntryWithData & { rawData: Buffer }) | null {
+	const database = getDb();
+	const row = database.prepare(`
+		SELECT id, date, timestamp, location_id_encrypted, captured_lat_encrypted,
+			captured_lng_encrypted, template_id, encrypted_data, created_at
+		FROM entries
+		WHERE date = ?
+	`).get(date) as {
+		id: number;
+		date: string;
+		timestamp: string;
+		location_id_encrypted: Buffer | null;
+		captured_lat_encrypted: Buffer | null;
+		captured_lng_encrypted: Buffer | null;
+		template_id: number | null;
+		encrypted_data: Buffer;
+		created_at: string;
+	} | undefined;
+	if (!row) return null;
+	const locationId = decryptOptionalNumber(row.location_id_encrypted);
+	const location = locationId != null ? getLocationById(locationId) : null;
+	return {
+		id: row.id,
+		date: row.date,
+		timestamp: row.timestamp,
+		location_id: locationId,
+		location_name: location?.name,
+		captured_lat: decryptOptionalNumber(row.captured_lat_encrypted),
+		rawData: row.encrypted_data,
+		captured_lng: decryptOptionalNumber(row.captured_lng_encrypted),
+		template_id: row.template_id,
+		created_at: row.created_at,
+		data: {} as any
+	};
+}
+export function hasEntryForDate(date: string): boolean {
+	const database = getDb();
+	const row = database.prepare('SELECT 1 FROM entries WHERE date = ?').get(date);
+	return !!row;
+}
+export function getEntryDates(): string[] {
+	const database = getDb();
+	const rows = database.prepare(
+		'SELECT date FROM entries ORDER BY date'
+	).all() as { date: string }[];
+	return rows.map(r => r.date);
+}

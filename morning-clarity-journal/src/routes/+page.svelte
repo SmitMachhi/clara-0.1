@@ -7,13 +7,9 @@
 	import { apiFetch, setSessionFlag } from '$lib/api-client.js';
 	import ExistingSessionWarning from '$lib/components/ExistingSessionWarning.svelte';
 	import Icon from '$lib/components/Icons.svelte';
+	import { getOptionalLocation } from '$lib/session-helpers.js';
+	import type { ExistingSessionInfo } from '$lib/session-helpers.js';
 	import { onMount } from 'svelte';
-
-	interface ExistingSessionInfo {
-		device: string;
-		location: string;
-		since: number;
-	}
 
 	let passphrase = $state('');
 	let error = $state('');
@@ -34,21 +30,6 @@
 		}
 	});
 
-	async function getOptionalLocation(): Promise<{ lat: number; lng: number } | null> {
-		if (!navigator.geolocation) return null;
-
-		try {
-			const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-				navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
-			});
-			return {
-				lat: position.coords.latitude,
-				lng: position.coords.longitude
-			};
-		} catch {
-			return null;
-		}
-	}
 
 	function handleKeypress(e: KeyboardEvent) {
 		if (e.key === 'Enter') {
@@ -174,7 +155,9 @@
 				type="button"
 				disabled={!passphrase || isSubmitting}
 				onclick={handleSubmit}
-				class="w-full mt-[var(--space-lg)] py-[var(--space-md)] bg-[var(--surface-elevated)] text-[var(--text)] rounded-[var(--radius-md)] transition-colors hover:bg-[var(--border)] disabled:opacity-40 disabled:cursor-not-allowed"
+				class="w-full mt-[var(--space-lg)] py-[var(--space-md)] bg-[var(--surface-elevated)]
+					text-[var(--text)] rounded-[var(--radius-md)] transition-colors
+					hover:bg-[var(--border)] disabled:opacity-40 disabled:cursor-not-allowed"
 			>
 				{isSubmitting ? 'Unlocking...' : 'Unlock'}
 			</button>

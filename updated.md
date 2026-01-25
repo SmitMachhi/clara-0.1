@@ -1215,3 +1215,27 @@ File line counts after refactoring:
 (append a short paragraph per completed step; include the step number, a concise description of changes, and `npx svelte-check --threshold error` result)
 
 Step 1: Added new db module scaffolding (types, connection, schema + split migrations/backfills to keep files under 200 lines) and index re-exports without touching `src/lib/db.ts`. `npx svelte-check --threshold error`: 0 errors.
+
+Step 2: Added `entries.ts` and `crypto-helpers.ts` under `src/lib/db/`, updated `index.ts` exports, and added a temporary `locations.ts` re-export stub to satisfy imports until Step 3. `npx svelte-check --threshold error`: 0 errors.
+
+Step 3: Replaced the temporary locations stub with full location operations in `src/lib/db/locations.ts` and re-exported from `src/lib/db/index.ts`. `npx svelte-check --threshold error`: 0 errors.
+
+Step 4: Added `src/lib/db/templates.ts` with template CRUD/active logic and re-exported from `src/lib/db/index.ts`. `npx svelte-check --threshold error`: 0 errors.
+
+Step 5: Added `src/lib/db/sessions.ts` with session/auth helpers and re-exported from `src/lib/db/index.ts`. `npx svelte-check --threshold error`: 0 errors.
+
+Step 6: Added `src/lib/db/backups.ts` for backup encryption and rotation and re-exported from `src/lib/db/index.ts`. `npx svelte-check --threshold error`: 0 errors.
+
+Step 7: Replaced `src/lib/db.ts` with re-exports from `src/lib/db/` for backward compatibility. `npx svelte-check --threshold error`: 0 errors.
+
+Step 8: Added settings sub-components under `src/lib/components/settings/` for locations, database, and template (with preset/editor subcomponents to stay under 200 lines) without wiring them into `SettingsModal` yet. `npx svelte-check --threshold error`: 0 errors.
+
+Step 9: Refactored `src/lib/components/SettingsModal.svelte` to use the settings sub-components and aligned callback types for existing callers. `npx svelte-check --threshold error`: 0 errors.
+
+Step 10: Split `src/lib/template.ts` into `src/lib/template/` modules (types/parser/data/index) and replaced `src/lib/template.ts` with re-exports. `npx svelte-check --threshold error`: 0 errors.
+
+Step 11: Added `src/lib/journal-page-helpers.ts` to consolidate journal loading and draft persistence, and updated `src/routes/journal/+page.svelte` to use it. `npx svelte-check --threshold error`: 0 errors.
+
+Step 12: Added `src/lib/form-helpers.ts`, `src/lib/entry-helpers.ts`, and `src/lib/session-helpers.ts` to trim remaining files, and updated `JournalForm.svelte`, `entry/[date]/+page.svelte`, and `+page.svelte` to use them. `npx svelte-check --threshold error`: 0 errors.
+
+Step 13: Ran `npm run build` successfully and started `npm run dev` (server started; command timed out after confirming it was running). 

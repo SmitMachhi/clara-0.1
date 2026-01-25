@@ -5,20 +5,23 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { createEmptyFormData } from '$lib/template.js';
 	import type { TemplateModel } from '$lib/template.js';
 	import { formatDateISO, isPastCutoff, getYearDates, getDateTimeParts } from '$lib/utils.js';
 	import type { Location, Entry } from '$lib/db.js';
 	import { TIME } from '$lib/constants.js';
-	import { fetchLocations, fetchEntries, captureGps } from '$lib/journal-actions.js';
+	import { captureGps } from '$lib/journal-actions.js';
 	import { apiFetch } from '$lib/api-client.js';
+	import {
+		DRAFT_DEBOUNCE_MS,
+		DRAFT_STORAGE_KEY,
+		loadJournalPageData,
+		restoreDraft,
+		saveDraft
+	} from '$lib/journal-page-helpers.js';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import JournalForm from '$lib/components/JournalForm.svelte';
 	import JournalSidebar from '$lib/components/JournalSidebar.svelte';
 	import SettingsModal from '$lib/components/SettingsModal.svelte';
-
-	const DRAFT_STORAGE_KEY = 'mcj-draft';
-	const DRAFT_DEBOUNCE_MS = 300;
 
 	let template = $state<TemplateModel | null>(null);
 	let formData = $state<Record<string, string>>({});
@@ -95,7 +98,7 @@
 			const ok = await loadAllData();
 			if (!ok) return;
 			hasEntryToday = entryDates.includes(today);
-			restoreDraft();
+			formData = restoreDraft(formData);
 		};
 
 		void init();
@@ -110,60 +113,20 @@
 		};
 	});
 
-	async function loadLocations(): Promise<boolean> {
-		try {
-			locations = await fetchLocations();
-			return true;
-		} catch (err) {
-			console.error('Failed to load locations', err);
-			return false;
-		}
-	}
-
-	async function loadEntries(): Promise<boolean> {
-		try {
-			const data = await fetchEntries();
-			entries = data.entries;
-			entryDates = data.entryDates;
-			return true;
-		} catch (err) {
-			console.error('Failed to load entries', err);
-			return false;
-		}
-	}
-
-	async function loadTemplate(): Promise<boolean> {
-		try {
-			const response = await apiFetch('/api/template');
-			if (!response.ok) {
-				return false;
-			}
-			const data = await response.json();
-			if (!data?.parsed?.fieldIds) {
-				return false;
-			}
-			template = data.parsed as TemplateModel;
-			formData = createEmptyFormData(template);
-			return true;
-		} catch (err) {
-			console.error('Failed to load template', err);
-			return false;
-		}
-	}
-
 	async function loadAllData(): Promise<boolean> {
 		isLoadingData = true;
 		loadError = '';
-		const [locationsOk, entriesOk, templateOk] = await Promise.all([
-			loadLocations(),
-			loadEntries(),
-			loadTemplate()
-		]);
+		const result = await loadJournalPageData();
 		isLoadingData = false;
-		if (!locationsOk || !entriesOk || !templateOk) {
-			loadError = 'Failed to load journal data.';
+		if (!result.data) {
+			loadError = result.error;
 			return false;
 		}
+		locations = result.data.locations;
+		entries = result.data.entries;
+		entryDates = result.data.entryDates;
+		template = result.data.template;
+		formData = result.data.formData;
 		return true;
 	}
 
@@ -171,15 +134,18 @@
 		const ok = await loadAllData();
 		if (ok) {
 			hasEntryToday = entryDates.includes(today);
-			restoreDraft();
+			formData = restoreDraft(formData);
 		}
 	}
 
 	async function handleTemplateChanged() {
-		const ok = await loadTemplate();
-		if (!ok) {
+		const result = await loadJournalPageData();
+		if (!result.data) {
 			console.error('Failed to reload template');
+			return;
 		}
+		template = result.data.template;
+		formData = result.data.formData;
 	}
 
 	async function handleSubmit() {
@@ -247,18 +213,14 @@
 		gpsError = '';
 	}
 
-	function restoreDraft() {
-		if (hasEntryToday) return;
-		const rawDraft = sessionStorage.getItem(DRAFT_STORAGE_KEY);
-		if (!rawDraft) return;
-
+	async function handleLocationsChanged(): Promise<boolean> {
 		try {
-			const parsedDraft = JSON.parse(rawDraft);
-			if (parsedDraft && typeof parsedDraft === 'object') {
-				formData = { ...formData, ...parsedDraft };
-			}
-		} catch (err) {
-			console.error('Failed to restore draft', err);
+			const updatedLocations = await loadJournalPageData();
+			if (!updatedLocations.data) return false;
+			locations = updatedLocations.data.locations;
+			return true;
+		} catch {
+			return false;
 		}
 	}
 
@@ -274,11 +236,7 @@
 		}
 
 		draftSaveTimeout = setTimeout(() => {
-			try {
-				sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(formData));
-			} catch (err) {
-				console.error('Failed to save draft', err);
-			}
+			saveDraft(formData);
 		}, DRAFT_DEBOUNCE_MS);
 	});
 </script>
@@ -336,7 +294,11 @@
 						onSubmit={handleSubmit}
 						onCaptureLocation={captureCurrentLocation}
 						onClearLocation={clearCapturedLocation}
-						onSelectLocation={(id) => { selectedLocationId = id; capturedLat = null; capturedLng = null; }}
+						onSelectLocation={(id) => {
+							selectedLocationId = id;
+							capturedLat = null;
+							capturedLng = null;
+						}}
 						onClearSelectedLocation={() => { selectedLocationId = null; }}
 					/>
 				{/if}
@@ -363,6 +325,6 @@
 	open={settingsOpen}
 	{locations}
 	onclose={() => settingsOpen = false}
-	onLocationsChanged={loadLocations}
+	onLocationsChanged={handleLocationsChanged}
 	onTemplateChanged={handleTemplateChanged}
 />

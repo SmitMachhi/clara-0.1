@@ -1,7 +1,6 @@
 <!-- purpose: View saved journal entry by date -->
 <!-- context: Read-only display of completed entries -->
 <!-- location: src/routes/entry/[date]/+page.svelte -->
-
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -10,33 +9,29 @@
 	import type { EntryWithData, JournalData } from '$lib/db.js';
 	import { formatCoordinate } from '$lib/location-utils.js';
 	import { getLegacyFieldLabel } from '$lib/legacy-field-labels.js';
+	import { getTimestampParts, hasLegacyContent } from '$lib/entry-helpers.js';
 	import { apiFetch } from '$lib/api-client.js';
 	import Icon from '$lib/components/Icons.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
-
 	let entry = $state<EntryWithData | null>(null);
 	let template = $state<TemplateModel | null>(null);
 	let loading = $state(true);
 	let error = $state('');
 	let expandedQuestions = $state<Set<string>>(new Set());
-
 	$effect(() => {
 		if ($page.params.date) {
 			loadEntry($page.params.date);
 		}
 	});
-
 	async function loadEntry(date: string) {
 		loading = true;
 		error = '';
-
 		try {
 			const res = await apiFetch('/api/session');
 			if (res.status === 401) {
 				goto('/');
 				return;
 			}
-
 			const entryRes = await apiFetch(`/api/entries/${date}`);
 			if (entryRes.ok) {
 				const apiEntry = await entryRes.json();
@@ -44,14 +39,12 @@
 					error = 'Failed to load template';
 					return;
 				}
-
 				const loadedEntry = {
 					...apiEntry,
 					data: apiEntry.data as JournalData
 				};
 				entry = loadedEntry;
 				template = apiEntry.template as TemplateModel;
-
 				const questionsWithContent = new Set<string>();
 				for (const question of template.questions) {
 					for (const field of question.fields) {
@@ -73,11 +66,9 @@
 			loading = false;
 		}
 	}
-	
 	function goBack() {
 		goto('/journal');
 	}
-	
 	function toggleQuestion(questionId: string) {
 		const newSet = new Set(expandedQuestions);
 		if (newSet.has(questionId)) {
@@ -87,26 +78,7 @@
 		}
 		expandedQuestions = newSet;
 	}
-	
-	// Check if entry has legacy fields (from old template)
-	function hasLegacyContent(): boolean {
-		if (!entry || !template) return false;
-		const currentFieldIds = new Set(template.fieldIds);
-		return Object.entries(entry.data).some(([key, value]) => 
-			value && !currentFieldIds.has(key)
-		);
-	}
-
-	// Parse timestamp parts for display
-	function getTimestampParts(timestamp: string) {
-		// Format: "HH:MM:SS day month, year" or similar
-		const parts = timestamp.split(' ');
-		const time = parts[0]?.split(':').slice(0, 2).join(':') || '';
-		const rest = parts.slice(1).join(' ');
-		return { time, rest };
-	}
 </script>
-
 <div class="notion-page">
 	<div class="main-area">
 		<main class="content">
@@ -132,10 +104,11 @@
 						{#if entry.location_name}
 							<div class="page-location">{entry.location_name} 📍</div>
 						{:else if entry.captured_lat !== null && entry.captured_lng !== null}
-							<div class="page-location">{formatCoordinate(entry.captured_lat)}, {formatCoordinate(entry.captured_lng)} 📍</div>
+							<div class="page-location">
+								{formatCoordinate(entry.captured_lat)}, {formatCoordinate(entry.captured_lng)} 📍
+							</div>
 						{/if}
 					</div>
-					
 					<!-- Page content -->
 					<div class="page-content">
 						{#each template.questions as question}
@@ -158,7 +131,6 @@
 											{question.question}
 										</span>
 									</button>
-									
 									<!-- Toggle content -->
 									{#if expandedQuestions.has(question.id)}
 										<div class="toggle-content" transition:slide={{ duration: 150 }}>
@@ -181,9 +153,8 @@
 								</div>
 							{/if}
 						{/each}
-						
 						<!-- Legacy content -->
-						{#if hasLegacyContent()}
+						{#if hasLegacyContent(entry, template)}
 							<div class="legacy-section">
 								<button 
 									class="toggle-header"
@@ -197,7 +168,6 @@
 									</span>
 									<span class="toggle-title legacy">Additional notes</span>
 								</button>
-								
 									{#if expandedQuestions.has('legacy')}
 										<div class="toggle-content" transition:slide={{ duration: 150 }}>
 											{#each Object.entries(entry.data) as [key, value]}
@@ -217,7 +187,6 @@
 				</div>
 			{/if}
 		</main>
-		
 		<!-- Back button -->
 		<button class="nav-btn back" onclick={goBack} aria-label="Back to journal">
 			<Icon name="arrow-left" size={16} />
