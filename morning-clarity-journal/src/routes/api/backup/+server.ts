@@ -1,12 +1,13 @@
 import type { RequestHandler } from './$types';
-import { createBackup, getBackups } from '$lib/db.js';
+import { createBackup, getBackups, decryptBackup } from '$lib/db.js';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { successResponse, errorResponse, notFoundResponse, noStoreHeaders } from '$lib/api-helpers.js';
+import { logAuditEvent } from '$lib/audit.js';
 
 function isValidBackupFilename(filename: string): boolean {
-	// Only allow filenames matching: journal-backup-YYYY-MM-DDTHH-MM-SS.db
-	const pattern = /^journal-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.db$/;
+	// Allow both encrypted (.db.enc) and legacy unencrypted (.db) backups
+	const pattern = /^journal-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.db(\.enc)?$/;
 	return pattern.test(filename);
 }
 
@@ -38,6 +39,11 @@ export const GET: RequestHandler = async ({ url }) => {
 			return notFoundResponse('Backup not found');
 		}
 
+		logAuditEvent({
+			eventType: 'backup_downloaded',
+			details: { filename }
+		});
+
 		// Verify the backup path is within the expected directory
 		const backupDir = path.join(process.env.NODE_ENV === 'production' ? '/data' : './data', 'backups');
 		const resolvedPath = path.resolve(backup.path);
@@ -48,12 +54,24 @@ export const GET: RequestHandler = async ({ url }) => {
 		}
 
 		try {
-			const fileBuffer = readFileSync(backup.path);
-			return new Response(fileBuffer, {
+			let fileBuffer: Buffer;
+
+			if (filename.endsWith('.enc')) {
+				// Decrypt encrypted backup for download
+				fileBuffer = decryptBackup(backup.path);
+			} else {
+				// Legacy unencrypted backup
+				fileBuffer = readFileSync(backup.path);
+			}
+
+			// Remove .enc extension for download filename (user gets decrypted .db file)
+			const downloadFilename = filename.replace('.enc', '');
+			const responseBody = new Uint8Array(fileBuffer);
+			return new Response(responseBody, {
 				headers: {
 					...noStoreHeaders(),
 					'Content-Type': 'application/octet-stream',
-					'Content-Disposition': `attachment; filename="${filename}"`,
+					'Content-Disposition': `attachment; filename="${downloadFilename}"`,
 					'Content-Length': fileBuffer.length.toString()
 				}
 			});
@@ -70,10 +88,16 @@ export const POST: RequestHandler = async () => {
 		const backupPath = createBackup();
 		const backups = getBackups();
 		const latest = backups[0];
+		const backupFilename = path.basename(backupPath);
+
+		logAuditEvent({
+			eventType: 'backup_created',
+			details: { filename: backupFilename }
+		});
 
 		return successResponse({
 			message: 'Backup created successfully',
-			filename: path.basename(backupPath),
+			filename: backupFilename,
 			size: latest?.size || 0,
 			created: latest?.created.toISOString() || new Date().toISOString()
 		});

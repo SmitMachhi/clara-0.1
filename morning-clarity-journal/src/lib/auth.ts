@@ -1,8 +1,10 @@
-import { randomBytes, createHmac, timingSafeEqual, createHash, pbkdf2Sync } from 'crypto';
+import { randomBytes, createHmac, timingSafeEqual, pbkdf2Sync } from 'crypto';
 import { env } from '$env/dynamic/private';
-import { getAuthRateLimit, setAuthRateLimit, clearAuthRateLimit } from '$lib/db.js';
+import { getAuthRateLimit, setAuthRateLimit, clearAuthRateLimit, getPassphraseSalt } from '$lib/db.js';
+import { validatePassphraseStrength } from '$lib/validation.js';
 
-const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
+const SESSION_DURATION_MS = 4 * 60 * 60 * 1000; // 4 hours
+export const SESSION_REFRESH_THRESHOLD_MS = 30 * 60 * 1000; // Refresh if less than 30 minutes remaining
 const RATE_LIMIT_MAX_ATTEMPTS = 5;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const PBKDF2_ITERATIONS = 100000;
@@ -32,6 +34,21 @@ export function createSessionToken(): { token: string; expiresAt: number; nonce:
 	
 	const token = `${payloadBase64Url}.${signatureBase64Url}`;
 	return { token, expiresAt, nonce };
+}
+
+export function refreshSessionToken(existingNonce: string): { token: string; expiresAt: number } {
+	const expiresAt = Date.now() + SESSION_DURATION_MS;
+	const payload = JSON.stringify({ exp: expiresAt, nonce: existingNonce });
+	const payloadBase64Url = base64UrlEncode(Buffer.from(payload, 'utf8'));
+
+	const secret = getSessionSecret();
+
+	const hmac = createHmac('sha256', secret);
+	hmac.update(payloadBase64Url);
+	const signatureBase64Url = base64UrlEncode(hmac.digest());
+
+	const token = `${payloadBase64Url}.${signatureBase64Url}`;
+	return { token, expiresAt };
 }
 
 export function verifySessionToken(token: string | undefined): { exp: number; nonce: string } | null {
@@ -105,9 +122,11 @@ export function verifyPassphrase(input: string): boolean {
 	if (!expected) {
 		throw new Error('JOURNAL_PASSPHRASE environment variable is not set');
 	}
-	// Derive a deterministic salt from the expected passphrase using SHA-256.
-	// This avoids needing a stored salt while still preventing rainbow tables.
-	const salt = createHash('sha256').update('mcj-passphrase-salt:' + expected, 'utf8').digest();
+
+	// Use a random salt stored in the database (generated on first use)
+	const saltHex = getPassphraseSalt();
+	const salt = Buffer.from(saltHex, 'hex');
+
 	const inputKey = pbkdf2Sync(input, salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, 'sha256');
 	const expectedKey = pbkdf2Sync(expected, salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, 'sha256');
 	return timingSafeEqual(inputKey, expectedKey);
@@ -119,4 +138,20 @@ function getSessionSecret(): string {
 		throw new Error('JOURNAL_SESSION_SECRET must be at least 32 characters');
 	}
 	return secret;
+}
+
+export function validateConfiguredPassphrase(): void {
+	const passphrase = env.JOURNAL_PASSPHRASE;
+	if (!passphrase) {
+		throw new Error('JOURNAL_PASSPHRASE environment variable is not set');
+	}
+
+	const validation = validatePassphraseStrength(passphrase);
+	if (!validation.valid) {
+		console.warn('WARNING: Configured passphrase does not meet security requirements:');
+		for (const error of validation.errors) {
+			console.warn(`  - ${error}`);
+		}
+		console.warn('Consider updating JOURNAL_PASSPHRASE in your environment.');
+	}
 }

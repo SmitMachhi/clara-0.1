@@ -16,6 +16,7 @@ import {
 	getLocationById
 } from '$lib/db.js';
 import { parseDeviceInfo } from '$lib/device-parser.js';
+import { logAuditEvent } from '$lib/audit.js';
 
 interface AuthRequestBody {
 	passphrase?: string;
@@ -29,6 +30,10 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 
 	const rateLimit = checkAuthRateLimit(ip);
 	if (!rateLimit.ok) {
+		logAuditEvent({
+			eventType: 'auth_rate_limited',
+			ipAddress: ip
+		});
 		return json({
 			success: false,
 			error: `Too many attempts. Try again in ${rateLimit.retryAfter} seconds.`
@@ -44,12 +49,20 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 
 	if (!passphrase || typeof passphrase !== 'string') {
 		recordAuthFailure(ip);
+		logAuditEvent({
+			eventType: 'auth_failure',
+			ipAddress: ip
+		});
 		return json({ success: false, error: 'Authentication failed' }, { status: 401 });
 	}
 
 	const isValid = verifyPassphrase(passphrase);
 	if (!isValid) {
 		recordAuthFailure(ip);
+		logAuditEvent({
+			eventType: 'auth_failure',
+			ipAddress: ip
+		});
 		return json({ success: false, error: 'Authentication failed' }, { status: 401 });
 	}
 
@@ -108,6 +121,13 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 		sameSite: 'strict',
 		secure: process.env.NODE_ENV === 'production',
 		maxAge: maxAgeSeconds
+	});
+
+	logAuditEvent({
+		eventType: 'auth_success',
+		ipAddress: ip,
+		sessionId: token,
+		details: { deviceInfo }
 	});
 
 	return json({ success: true });

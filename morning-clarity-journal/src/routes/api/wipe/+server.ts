@@ -1,9 +1,12 @@
 import type { RequestHandler } from './$types';
 import { getDb } from '$lib/db.js';
+import { verifyPassphrase } from '$lib/auth.js';
 import { parseJsonBody, successResponse, errorResponse } from '$lib/api-helpers.js';
+import { logAuditEvent } from '$lib/audit.js';
 
 interface WipePayload {
 	confirm: string;
+	passphrase: string;
 }
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -12,8 +15,21 @@ export const POST: RequestHandler = async ({ request }) => {
 		return errorResponse(body.error);
 	}
 
-	if (body.data?.confirm !== 'DELETE_ALL_MY_DATA') {
-		return errorResponse('Must send { \"confirm\": \"DELETE_ALL_MY_DATA\" } to proceed');
+	const { confirm, passphrase } = body.data ?? {};
+
+	// Require confirmation string
+	if (confirm !== 'DELETE_ALL_MY_DATA') {
+		return errorResponse('Must send confirm: \"DELETE_ALL_MY_DATA\" to proceed', 400);
+	}
+
+	// Require re-authentication with passphrase
+	if (!passphrase || typeof passphrase !== 'string') {
+		return errorResponse('Passphrase required for destructive operations', 400);
+	}
+
+	const isValid = verifyPassphrase(passphrase);
+	if (!isValid) {
+		return errorResponse('Invalid passphrase', 401);
 	}
 
 	const database = getDb();
@@ -21,7 +37,11 @@ export const POST: RequestHandler = async ({ request }) => {
 	database.exec('DELETE FROM locations');
 	database.exec('DELETE FROM templates');
 	database.exec('DELETE FROM template_presets');
-	database.exec("DELETE FROM config WHERE key != 'encryption_key_migrated_v2'");
+	database.exec("DELETE FROM config WHERE key != 'encryption_key_migrated_v2' AND key != 'passphrase_salt'");
+
+	logAuditEvent({
+		eventType: 'data_wipe'
+	});
 
 	return successResponse({ message: 'All data deleted' });
 };

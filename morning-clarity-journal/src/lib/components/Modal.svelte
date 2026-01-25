@@ -13,7 +13,7 @@
 		className?: string;
 	}
 	let { open, title, onclose, children, className }: Props = $props();
-	const modalClassName = className ? `modal ${className}` : 'modal';
+	const modalClassName = $derived(className ? `modal ${className}` : 'modal');
 
 	function handleOverlayKey(event: KeyboardEvent) {
 		if (event.target !== event.currentTarget) return;

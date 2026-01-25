@@ -35,3 +35,39 @@ export function validateJournalData(data: unknown): { valid: boolean; error?: st
 	}
 	return { valid: true };
 }
+
+export interface PassphraseValidationResult {
+	valid: boolean;
+	errors: string[];
+}
+
+export function validatePassphraseStrength(passphrase: string): PassphraseValidationResult {
+	const errors: string[] = [];
+
+	// Minimum length of 12 characters
+	if (passphrase.length < 12) {
+		errors.push('Passphrase must be at least 12 characters long');
+	}
+
+	// Maximum length of 128 characters (prevent DoS via PBKDF2)
+	if (passphrase.length > 128) {
+		errors.push('Passphrase must be at most 128 characters long');
+	}
+
+	// Check for at least some complexity (not all same character)
+	const uniqueChars = new Set(passphrase).size;
+	if (uniqueChars < 4) {
+		errors.push('Passphrase must contain at least 4 different characters');
+	}
+
+	// Check it's not just repeating patterns
+	const normalized = passphrase.toLowerCase();
+	if (/^(.+)\\1+$/.test(normalized)) {
+		errors.push('Passphrase cannot be a simple repeating pattern');
+	}
+
+	return {
+		valid: errors.length === 0,
+		errors
+	};
+}

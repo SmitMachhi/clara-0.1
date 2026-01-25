@@ -1,7 +1,15 @@
 import { json } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit';
-import { verifySessionToken } from '$lib/auth.js';
-import { getActiveSession } from '$lib/db.js';
+import { verifySessionToken, SESSION_REFRESH_THRESHOLD_MS, refreshSessionToken, validateConfiguredPassphrase } from '$lib/auth.js';
+import { getActiveSession, isSessionNonceBlacklisted, updateSessionExpiration } from '$lib/db.js';
+import { checkRateLimit, getRateLimitKey } from '$lib/rate-limit.js';
+
+// Validate passphrase on server startup
+try {
+	validateConfiguredPassphrase();
+} catch {
+	// Validation function handles its own warnings
+}
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const forwardedProto = event.request.headers.get('x-forwarded-proto');
@@ -48,6 +56,53 @@ export const handle: Handle = async ({ event, resolve }) => {
 			const activeSession = getActiveSession();
 			if (!activeSession || activeSession.nonce !== payload.nonce || Date.now() > activeSession.expiresAt) {
 				return json({ success: false, error: 'Unauthorized' }, { status: 403 });
+			}
+
+			// Check if session has been explicitly revoked
+			if (isSessionNonceBlacklisted(payload.nonce)) {
+				return json({ success: false, error: 'Session revoked' }, { status: 403 });
+			}
+
+			// Refresh session if approaching expiration (sliding window)
+			const timeRemaining = payload.exp - Date.now();
+			if (timeRemaining < SESSION_REFRESH_THRESHOLD_MS && timeRemaining > 0) {
+				const { token: newToken, expiresAt: newExpiresAt } = refreshSessionToken(payload.nonce);
+
+				if (updateSessionExpiration(payload.nonce, newExpiresAt)) {
+					const maxAgeSeconds = Math.floor((newExpiresAt - Date.now()) / 1000);
+					event.cookies.set('session', newToken, {
+						path: '/',
+						httpOnly: true,
+						sameSite: 'strict',
+						secure: process.env.NODE_ENV === 'production',
+						maxAge: maxAgeSeconds
+					});
+				}
+			}
+		}
+	}
+
+	// Rate limiting for authenticated API requests
+	if (event.url.pathname.startsWith('/api/')) {
+		const excludedFromRateLimit = ['/api/auth', '/api/session'];
+
+		if (!excludedFromRateLimit.includes(event.url.pathname)) {
+			const sessionCookie = event.cookies.get('session');
+			const rateLimitIdentifier = sessionCookie ? sessionCookie.slice(0, 32) : event.getClientAddress();
+			const rateLimitKey = getRateLimitKey(event.url.pathname, event.request.method);
+
+			const rateCheck = checkRateLimit(rateLimitKey, rateLimitIdentifier);
+			if (!rateCheck.allowed) {
+				return json(
+					{ success: false, error: `Rate limit exceeded. Try again in ${rateCheck.retryAfter} seconds.` },
+					{
+						status: 429,
+						headers: {
+							'Retry-After': String(rateCheck.retryAfter),
+							'X-RateLimit-Reset': String(Math.ceil(Date.now() / 1000) + (rateCheck.retryAfter || 0))
+						}
+					}
+				);
 			}
 		}
 	}

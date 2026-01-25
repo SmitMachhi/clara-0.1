@@ -9,8 +9,14 @@ import {
 } from '$lib/db.js';
 import { decrypt } from '$lib/server/crypto.js';
 import { noStoreHeaders } from '$lib/api-helpers.js';
+import { logAuditEvent } from '$lib/audit.js';
 
 export const GET: RequestHandler = async () => {
+	logAuditEvent({
+		eventType: 'data_export',
+		details: { format: 'json' }
+	});
+
 	const entries = getAllEntries();
 	const entriesWithData = entries.map(entry => {
 		const full = getEntryByDate(entry.date);

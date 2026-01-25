@@ -1,33 +1,65 @@
+# CLAUDE.md
 
-## architecture principles
+## Core principles
+- Feature-first structure: group by feature, not file type.
+- Single source of truth: never duplicate or store derived state; compute it from the source.
+- DRY: no duplicate logic, literals, or structures.
+- No magic literals: extract repeated values into constants.
+- One responsibility per file: split UI into components/subcomponents.
+- Dumb SvelteKit views: `.svelte/+page.svelte` composes only; no business rules or heavy computation. Put logic in TS utilities/services or backend.
+- No cross-pollution: do not embed big computations or business logic in `.svelte` files.
 
-- **feature-first**: group by feature, not type
-- **dry**: no duplicate logic/literals/structures
-- **single source of truth**: never duplicate/derive state; compute it
-- **no magic literals**: extract repeated values to constants
-- **lean pages**: `+page.svelte` handles routing/composition only; logic in hooks/services
-- **one responsibility per file**: split ui into components/subcomponents
-- **keep SvelteKit views dumb**: UI should never know your business logic. fetch from backend, render UI, nothing else
-- **no cross-pollution**: don't put big computations or business rules inside .svelte files. keep them in TS utilities or backend
+## Workflow (do this every task)
+1) Read before editing: open relevant files, follow existing patterns, never guess.
+2) Plan: list touched files + steps + verification commands.
+3) Implement: small diffs, minimal scope.
+4) Verify: run the smallest relevant checks (tests, lint, typecheck, build). Fix until green.
+5) Commit: small commits, imperative subject.
 
-## import & path rules
+## Token + context discipline
+- Use `@path/to/file` refs in chat. Quote only the needed lines.
+- Prefer search over reading lots of files.
+- Keep outputs short: show only key errors/diffs.
+- If stuck or self-correcting repeatedly: `/clear`, restate goal + constraints.
+- If near limit: `/compact` preserving modified files + decisions + commands.
 
-- **case-sensitive imports**: vite hmr breaks with wrong casing; match filesystem exactly (`./foo.js` not `./foo.js`)
-- **handle promises**: no floating promises; use `.catch()` for manual promises in async functions
+## Code quality rules (compressed)
+### Naming and Size
+- Max 200 lines per file (soft limit; split by responsibility).
+- Intention-revealing, consistent domain vocabulary. No pointless abbreviations.
+- Booleans: `is/has/can/should` + positive adjective (avoid negated names).
 
-## formatting (prettier)
+### Functions
+- Single purpose, small. Minimize args (aim <=3). No boolean flag params; use options objects/enums.
+- Separate I/O from pure logic. Minimize side effects.
+- Use guard clauses; avoid deep nesting.
 
-- tabs (not spaces)
-- single quotes for strings
-- no trailing commas
-- 100 char print width
+### Modules/classes
+- High cohesion, low coupling. Prefer composition over inheritance.
+- One public entrypoint when possible; keep helpers private.
+- Order code by execution flow.
 
-## file headers (mandatory)
+### Comments
+- Prefer better names/types over comments.
+- Comments only for “why”, constraints, or API docs.
 
-every svelte file starts with:
+### Tests
+- One behavior per test. Clear names. AAA or Given-When-Then.
+- Fast and deterministic. Avoid conditionals/loops in tests.
 
+## Imports + async safety
+- Case-sensitive import paths must match filesystem exactly.
+- No floating promises. Always `await`, `return`, or `.catch()`/handled rejection.
+
+## Formatting (Prettier)
+- Tabs.
+- Single quotes.
+- No trailing commas.
+- 100 char print width.
+
+## Mandatory Svelte file header
+Every `.svelte` file starts with:
 ```svelte
-<!-- purpose: <one-sentence summary> -->
-<!-- context: <feature/module and how it fits> -->
+<!-- purpose: <one sentence> -->
+<!-- context: <feature/module fit> -->
 <!-- location: <full internal path> -->
-```

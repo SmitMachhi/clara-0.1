@@ -1,9 +1,13 @@
+<!-- purpose: Collapsible section with a label and toggled content -->
+<!-- context: Common UI pattern for optional content blocks -->
+<!-- location: src/lib/components/ExpandableSection.svelte -->
+
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 
 	let {
 		label = '',
-		expanded = false,
+		expanded,
 		children
 	}: {
 		label?: string;
@@ -11,7 +15,14 @@
 		children: Snippet;
 	} = $props();
 
-	let isOpen = $state(expanded);
+	let isOpen = $state(false);
+	let hasInitialized = false;
+
+	$effect(() => {
+		if (hasInitialized) return;
+		isOpen = expanded ?? false;
+		hasInitialized = true;
+	});
 
 	function toggle() {
 		isOpen = !isOpen;

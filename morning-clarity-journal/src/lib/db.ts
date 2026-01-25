@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
 import { decrypt, encrypt, decryptWithLegacyKey } from '$lib/server/crypto.js';
 import { parseTemplateSource, serializeDefaultTemplate } from './template';
 import type { TemplateModel } from './template';
@@ -10,6 +11,18 @@ const DATA_DIR = process.env.NODE_ENV === 'production' ? '/data' : './data';
 const DB_PATH = path.join(DATA_DIR, 'journal.db');
 const EMPTY_TEXT_PLACEHOLDER = '';
 const EMPTY_COORDINATE_PLACEHOLDER = 0;
+const BACKUP_ENCRYPTION_ALGO = 'aes-256-gcm';
+const BACKUP_IV_LENGTH = 12;
+const BACKUP_AUTH_TAG_LENGTH = 16;
+
+function getBackupEncryptionKey(): Buffer {
+	const secret = process.env.JOURNAL_ENCRYPTION_KEY;
+	if (!secret) {
+		throw new Error('JOURNAL_ENCRYPTION_KEY environment variable is not set');
+	}
+	// Derive a separate key for backup encryption
+	return scryptSync(secret, 'mcj-backup-encryption-salt', 32);
+}
 
 // Lazy-initialized database connection
 let db: Database.Database | null = null;
@@ -82,6 +95,33 @@ function getDbInternal(): Database.Database {
 			count INTEGER NOT NULL,
 			reset_at INTEGER NOT NULL
 		);
+
+		CREATE TABLE IF NOT EXISTS api_rate_limits (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			key TEXT NOT NULL,
+			timestamp INTEGER NOT NULL
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_api_rate_limits_key_ts ON api_rate_limits(key, timestamp);
+
+		CREATE TABLE IF NOT EXISTS session_blacklist (
+			nonce TEXT PRIMARY KEY,
+			blacklisted_at INTEGER NOT NULL,
+			expires_at INTEGER NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS audit_log (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			timestamp INTEGER NOT NULL,
+			event_type TEXT NOT NULL,
+			ip_address TEXT,
+			session_id TEXT,
+			details TEXT,
+			created_at TEXT DEFAULT (datetime('now'))
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);
+		CREATE INDEX IF NOT EXISTS idx_audit_log_event_type ON audit_log(event_type);
 
 		CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date);
 	`);
@@ -462,6 +502,22 @@ export function setActiveSession(
 	`).run(sessionData);
 }
 
+export function updateSessionExpiration(nonce: string, newExpiresAt: number): boolean {
+	const database = getDb();
+	const existing = getActiveSession();
+
+	if (!existing || existing.nonce !== nonce) {
+		return false;
+	}
+
+	const updatedSession = { ...existing, expiresAt: newExpiresAt };
+	database.prepare(`
+		UPDATE config SET value = ? WHERE key = 'active_session'
+	`).run(JSON.stringify(updatedSession));
+
+	return true;
+}
+
 export function clearActiveSession(): void {
 	const database = getDb();
 	database.prepare('DELETE FROM config WHERE key = \'active_session\'').run();
@@ -478,6 +534,25 @@ export function getActiveSession(): ActiveSession | null {
 	} catch {
 		return null;
 	}
+}
+
+export function getPassphraseSalt(): string {
+	const database = getDb();
+	const row = database.prepare('SELECT value FROM config WHERE key = \'passphrase_salt\'').get() as { value: string } | undefined;
+
+	if (row?.value) {
+		return row.value;
+	}
+
+	// Generate a new random salt (32 bytes = 256 bits)
+	const newSalt = randomBytes(32).toString('hex');
+	database.prepare(`
+		INSERT INTO config (key, value)
+		VALUES ('passphrase_salt', ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value
+	`).run(newSalt);
+
+	return newSalt;
 }
 
 export function getAuthRateLimit(ip: string): { count: number; resetAt: number } | null {
@@ -502,6 +577,32 @@ export function setAuthRateLimit(ip: string, count: number, resetAt: number): vo
 export function clearAuthRateLimit(ip: string): void {
 	const database = getDb();
 	database.prepare('DELETE FROM auth_rate_limits WHERE ip = ?').run(ip);
+}
+
+export function blacklistSessionNonce(nonce: string, expiresAt: number): void {
+	const database = getDb();
+	const now = Date.now();
+
+	// Clean up expired blacklist entries
+	database.prepare('DELETE FROM session_blacklist WHERE expires_at < ?').run(now);
+
+	// Add nonce to blacklist
+	database.prepare(`
+		INSERT INTO session_blacklist (nonce, blacklisted_at, expires_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(nonce) DO UPDATE SET blacklisted_at = excluded.blacklisted_at
+	`).run(nonce, now, expiresAt);
+}
+
+export function isSessionNonceBlacklisted(nonce: string): boolean {
+	const database = getDb();
+	const now = Date.now();
+
+	const row = database.prepare(
+		'SELECT 1 FROM session_blacklist WHERE nonce = ? AND expires_at > ?'
+	).get(nonce, now);
+
+	return !!row;
 }
 
 /**
@@ -819,23 +920,35 @@ export function locationNameExists(name: string): boolean {
  */
 export function createBackup(): string {
 	const database = getDb();
-	
+
 	// Checkpoint WAL to ensure all data is in the main database file
 	database.pragma('wal_checkpoint(TRUNCATE)');
-	
+
 	// Ensure backup directory exists
 	const backupDir = path.join(DATA_DIR, 'backups');
 	if (!fs.existsSync(backupDir)) {
 		fs.mkdirSync(backupDir, { recursive: true });
 	}
-	
+
 	// Create backup filename with timestamp
-	const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5); // Format: 2024-01-15T10-30-45
-	const backupPath = path.join(backupDir, `journal-backup-${timestamp}.db`);
-	
-	// Copy the database file
-	fs.copyFileSync(DB_PATH, backupPath);
-	
+	const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+	const backupPath = path.join(backupDir, `journal-backup-${timestamp}.db.enc`);
+
+	// Read the database file
+	const dbContent = fs.readFileSync(DB_PATH);
+
+	// Encrypt the backup
+	const key = getBackupEncryptionKey();
+	const iv = randomBytes(BACKUP_IV_LENGTH);
+	const cipher = createCipheriv(BACKUP_ENCRYPTION_ALGO, key, iv);
+
+	const encrypted = Buffer.concat([cipher.update(dbContent), cipher.final()]);
+	const authTag = cipher.getAuthTag();
+
+	// Format: IV (12 bytes) + Auth Tag (16 bytes) + Encrypted Data
+	const backupData = Buffer.concat([iv, authTag, encrypted]);
+	fs.writeFileSync(backupPath, backupData);
+
 	// Prune old backups - keep only the last 5
 	const backups = getBackups();
 	const RETENTION_COUNT = 5;
@@ -857,9 +970,12 @@ export function getBackups(): Array<{ filename: string; path: string; size: numb
 	if (!fs.existsSync(backupDir)) {
 		return [];
 	}
-	
+
 	const files = fs.readdirSync(backupDir)
-		.filter(file => file.startsWith('journal-backup-') && file.endsWith('.db'))
+		.filter(file =>
+			(file.startsWith('journal-backup-') && file.endsWith('.db')) ||
+			(file.startsWith('journal-backup-') && file.endsWith('.db.enc'))
+		)
 		.map(file => {
 			const filePath = path.join(backupDir, file);
 			const stats = fs.statSync(filePath);
@@ -870,9 +986,24 @@ export function getBackups(): Array<{ filename: string; path: string; size: numb
 				created: stats.birthtime
 			};
 		})
-		.sort((a, b) => b.created.getTime() - a.created.getTime()); // Most recent first
-	
+		.sort((a, b) => b.created.getTime() - a.created.getTime());
+
 	return files;
+}
+
+export function decryptBackup(encryptedPath: string): Buffer {
+	const encryptedData = fs.readFileSync(encryptedPath);
+
+	// Extract IV, auth tag, and encrypted content
+	const iv = encryptedData.subarray(0, BACKUP_IV_LENGTH);
+	const authTag = encryptedData.subarray(BACKUP_IV_LENGTH, BACKUP_IV_LENGTH + BACKUP_AUTH_TAG_LENGTH);
+	const encrypted = encryptedData.subarray(BACKUP_IV_LENGTH + BACKUP_AUTH_TAG_LENGTH);
+
+	const key = getBackupEncryptionKey();
+	const decipher = createDecipheriv(BACKUP_ENCRYPTION_ALGO, key, iv);
+	decipher.setAuthTag(authTag);
+
+	return Buffer.concat([decipher.update(encrypted), decipher.final()]);
 }
 
 function encryptOptionalString(value: string | null | undefined): Buffer | null {
