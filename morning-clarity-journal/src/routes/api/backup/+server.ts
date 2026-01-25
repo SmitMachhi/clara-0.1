@@ -2,7 +2,13 @@ import type { RequestHandler } from './$types';
 import { createBackup, getBackups } from '$lib/db.js';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { successResponse, errorResponse, notFoundResponse } from '$lib/api-helpers.js';
+import { successResponse, errorResponse, notFoundResponse, noStoreHeaders } from '$lib/api-helpers.js';
+
+function isValidBackupFilename(filename: string): boolean {
+	// Only allow filenames matching: journal-backup-YYYY-MM-DDTHH-MM-SS.db
+	const pattern = /^journal-backup-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.db$/;
+	return pattern.test(filename);
+}
 
 export const GET: RequestHandler = async ({ url }) => {
 	const action = url.searchParams.get('action');
@@ -15,11 +21,16 @@ export const GET: RequestHandler = async ({ url }) => {
 				size: b.size,
 				created: b.created.toISOString()
 			}))
-		});
+		}, noStoreHeaders());
 	}
 
 	if (action === 'download' && url.searchParams.get('filename')) {
 		const filename = url.searchParams.get('filename');
+
+		if (!filename || !isValidBackupFilename(filename)) {
+			return errorResponse('Invalid backup filename', 400, noStoreHeaders());
+		}
+
 		const backups = getBackups();
 		const backup = backups.find(b => b.filename === filename);
 
@@ -27,10 +38,20 @@ export const GET: RequestHandler = async ({ url }) => {
 			return notFoundResponse('Backup not found');
 		}
 
+		// Verify the backup path is within the expected directory
+		const backupDir = path.join(process.env.NODE_ENV === 'production' ? '/data' : './data', 'backups');
+		const resolvedPath = path.resolve(backup.path);
+		const resolvedBackupDir = path.resolve(backupDir);
+
+		if (!resolvedPath.startsWith(resolvedBackupDir + path.sep)) {
+			return errorResponse('Invalid backup path', 400, noStoreHeaders());
+		}
+
 		try {
 			const fileBuffer = readFileSync(backup.path);
 			return new Response(fileBuffer, {
 				headers: {
+					...noStoreHeaders(),
 					'Content-Type': 'application/octet-stream',
 					'Content-Disposition': `attachment; filename="${filename}"`,
 					'Content-Length': fileBuffer.length.toString()

@@ -4,7 +4,7 @@
 
 <script lang="ts">
 	interface Props {
-		name: 'settings' | 'menu' | 'close' | 'chevron' | 'check' | 'trash' | 'location' | 'sun' | 'moon' | 'download' | 'arrow-left' | 'lock' | 'eye' | 'eye-off' | 'handle';
+		name: 'settings' | 'menu' | 'close' | 'chevron' | 'check' | 'trash' | 'location' | 'sun' | 'moon' | 'download' | 'info' | 'arrow-left' | 'lock' | 'eye' | 'eye-off' | 'handle';
 		size?: number;
 	}
 	let { name, size = 16 }: Props = $props();
@@ -68,6 +68,12 @@
 		<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
 		<polyline points="7 10 12 15 17 10"></polyline>
 		<line x1="12" y1="15" x2="12" y2="3"></line>
+	</svg>
+{:else if name === 'info'}
+	<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+		<circle cx="12" cy="12" r="10"></circle>
+		<line x1="12" y1="16" x2="12" y2="12"></line>
+		<circle cx="12" cy="8" r="1"></circle>
 	</svg>
 {:else if name === 'arrow-left'}
 	<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

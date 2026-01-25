@@ -16,6 +16,7 @@
 	const modalClassName = className ? `modal ${className}` : 'modal';
 
 	function handleOverlayKey(event: KeyboardEvent) {
+		if (event.target !== event.currentTarget) return;
 		if (event.key === 'Enter' || event.key === ' ') {
 			event.preventDefault();
 			onclose();

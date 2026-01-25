@@ -1,5 +1,5 @@
 import { DISPLAY } from './constants.js';
-import { formatDateISO, isToday } from './utils.js';
+import { formatDateISO } from './utils.js';
 
 export interface Stats {
 	completedCount: number;
@@ -13,31 +13,33 @@ export interface RecentEntry {
 }
 
 export function calculateStats(entryDates: string[], yearDates: string[]): Stats {
-	const pastDates = yearDates.filter(d => isDateInPast(d));
-	const completedCount = pastDates.filter(d => entryDates.includes(d)).length;
+	const entrySet = new Set(entryDates);
+	const today = formatDateISO(new Date());
+	const pastDates = yearDates.filter(d => d < today);
+	let completedCount = 0;
+	for (const d of pastDates) {
+		if (entrySet.has(d)) completedCount += 1;
+	}
 	return { completedCount, total: pastDates.length };
 }
 
 export function getRecentEntries(
-	yearDates: string[], 
-	entryDates: string[], 
-	entries: any[], 
+	yearDates: string[],
+	entryDates: string[],
+	entries: any[],
 	limit: number = DISPLAY.RECENT_ENTRIES_LIMIT
 ): RecentEntry[] {
 	const entriesByDate = new Map(entries.map(entry => [entry.date, entry]));
+	const entrySet = new Set(entryDates);
+	const today = formatDateISO(new Date());
 
 	return yearDates
-		.filter(d => isDateInPast(d) || isToday(d))
+		.filter(d => d <= today)
 		.map(d => ({
 			date: d,
-			completed: entryDates.includes(d),
+			completed: entrySet.has(d),
 			entry: entriesByDate.get(d)
 		}))
 		.reverse()
 		.slice(0, limit);
-}
-
-function isDateInPast(dateStr: string): boolean {
-	const today = formatDateISO(new Date());
-	return dateStr < today;
 }

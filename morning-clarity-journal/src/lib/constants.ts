@@ -12,7 +12,7 @@ export const GPS = {
 // Time & Date
 export const TIME = {
 	CUTOFF_HOUR: 14, // 2:00 PM - from src/lib/utils.ts:43
-	CLOCK_UPDATE_INTERVAL_MS: 1000,
+	CLOCK_UPDATE_INTERVAL_MS: 30000,
 	SHAKE_DURATION_MS: 400, // from src/routes/+page.svelte:28
 	SUCCESS_MESSAGE_DURATION_MS: 3000, // from src/routes/journal/+page.svelte:483
 	ANIMATION_DURATION_MS: 150 // from src/routes/journal/+page.svelte:648

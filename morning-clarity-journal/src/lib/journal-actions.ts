@@ -12,14 +12,23 @@ export interface GpsCaptureResult {
 
 export async function fetchLocations(): Promise<Location[]> {
 	const res = await apiFetch('/api/locations');
+	if (!res.ok) {
+		throw new Error(`Failed to fetch locations: ${res.status}`);
+	}
 	const data = await res.json();
-	return data.locations || [];
+	return Array.isArray(data.locations) ? data.locations : [];
 }
 
 export async function fetchEntries(): Promise<{ entries: Entry[]; entryDates: string[] }> {
 	const res = await apiFetch('/api/entries');
+	if (!res.ok) {
+		throw new Error(`Failed to fetch entries: ${res.status}`);
+	}
 	const data = await res.json();
-	return { entries: data.entries, entryDates: data.entryDates };
+	return {
+		entries: Array.isArray(data.recentEntries) ? data.recentEntries : [],
+		entryDates: Array.isArray(data.entryDates) ? data.entryDates : []
+	};
 }
 
 export async function submitEntry(

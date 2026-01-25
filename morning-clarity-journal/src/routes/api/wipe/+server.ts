@@ -7,7 +7,7 @@ interface WipePayload {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
-	const body = await parseJsonBody<WipePayload>(request);
+	const body = await parseJsonBody<WipePayload>(request, 2048);
 	if (body.error) {
 		return errorResponse(body.error);
 	}

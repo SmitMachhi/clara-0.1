@@ -26,6 +26,7 @@ export interface TemplateField {
 	id: string;
 	label: string;
 	placeholder: string;
+	type: 'hp' | 'mp';
 }
 
 export interface TemplateQuestion {
@@ -179,7 +180,8 @@ export function parseTemplateSource(sourceText: string): { parsed: TemplateModel
 			question.fields.push({
 				id: hpFieldId,
 				label: '',
-				placeholder: hpPlaceholder
+				placeholder: hpPlaceholder,
+				type: 'hp'
 			});
 			fieldIds.push(hpFieldId);
 		}
@@ -202,7 +204,8 @@ export function parseTemplateSource(sourceText: string): { parsed: TemplateModel
 			question.fields.push({
 				id: mpFieldId,
 				label: mpText,
-				placeholder: mpPlaceholder
+				placeholder: mpPlaceholder,
+				type: 'mp'
 			});
 			fieldIds.push(mpFieldId);
 		}
@@ -228,7 +231,8 @@ export const journalTemplate: TemplateQuestion[] = [
 			{
 				id: 'whoAmIDoingThisFor',
 				label: '',
-				placeholder: ''
+				placeholder: '',
+				type: 'hp'
 			}
 		]
 	},
@@ -240,17 +244,20 @@ export const journalTemplate: TemplateQuestion[] = [
 			{
 				id: 'whatMakingAnxious',
 				label: 'What\'s making me anxious right now?',
-				placeholder: ''
+				placeholder: '',
+				type: 'mp'
 			},
 			{
 				id: 'whatAvoiding',
 				label: 'What am I avoiding?',
-				placeholder: ''
+				placeholder: '',
+				type: 'mp'
 			},
 			{
 				id: 'fearUnderneath',
 				label: 'What\'s the fear underneath that?',
-				placeholder: ''
+				placeholder: '',
+				type: 'mp'
 			}
 		]
 	},
@@ -262,12 +269,14 @@ export const journalTemplate: TemplateQuestion[] = [
 			{
 				id: 'evidenceFearNotTrue',
 				label: 'Evidence this fear might not be true?',
-				placeholder: ''
+				placeholder: '',
+				type: 'mp'
 			},
 			{
 				id: 'upsideIfAct',
 				label: 'Upside if I act despite fear?',
-				placeholder: ''
+				placeholder: '',
+				type: 'mp'
 			}
 		]
 	},
@@ -279,12 +288,14 @@ export const journalTemplate: TemplateQuestion[] = [
 			{
 				id: 'consumeInsteadProduce',
 				label: 'What will I consume instead of produce?',
-				placeholder: ''
+				placeholder: '',
+				type: 'mp'
 			},
 			{
 				id: 'exactDistraction',
 				label: 'What distraction will I reach for?',
-				placeholder: ''
+				placeholder: '',
+				type: 'mp'
 			}
 		]
 	},
@@ -296,7 +307,8 @@ export const journalTemplate: TemplateQuestion[] = [
 			{
 				id: 'wasteToday',
 				label: '',
-				placeholder: ''
+				placeholder: '',
+				type: 'hp'
 			}
 		]
 	},
@@ -308,17 +320,20 @@ export const journalTemplate: TemplateQuestion[] = [
 			{
 				id: 'commitment1',
 				label: '#1',
-				placeholder: ''
+				placeholder: '',
+				type: 'mp'
 			},
 			{
 				id: 'commitment2',
 				label: '#2',
-				placeholder: ''
+				placeholder: '',
+				type: 'mp'
 			},
 			{
 				id: 'commitment3',
 				label: '#3',
-				placeholder: ''
+				placeholder: '',
+				type: 'mp'
 			}
 		]
 	}

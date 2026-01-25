@@ -1,23 +1,19 @@
 import type { RequestHandler } from './$types';
-import { verifySessionToken, checkAuthRateLimit, recordAuthFailure, clearAuthFailures } from '$lib/auth.js';
+import { verifySessionToken } from '$lib/auth.js';
+import { getActiveSession } from '$lib/db.js';
 
-export const GET: RequestHandler = ({ cookies, getClientAddress }) => {
-	const ip = getClientAddress();
-	const rateLimitCheck = checkAuthRateLimit(ip);
-	if (!rateLimitCheck.ok) {
-		return new Response(null, {
-			status: 429,
-			headers: { 'Retry-After': String(rateLimitCheck.retryAfter) }
-		});
-	}
-
+export const GET: RequestHandler = async ({ cookies }) => {
 	const sessionCookie = cookies.get('session');
+	const payload = verifySessionToken(sessionCookie);
 
-	if (verifySessionToken(sessionCookie)) {
-		clearAuthFailures(ip);
-		return new Response(null, { status: 204 });
+	if (!payload) {
+		return new Response(null, { status: 401 });
 	}
 
-	recordAuthFailure(ip);
-	return new Response(null, { status: 401 });
+	const activeSession = getActiveSession();
+	if (!activeSession || activeSession.nonce !== payload.nonce || Date.now() > activeSession.expiresAt) {
+		return new Response(null, { status: 401 });
+	}
+
+	return new Response(null, { status: 204 });
 };

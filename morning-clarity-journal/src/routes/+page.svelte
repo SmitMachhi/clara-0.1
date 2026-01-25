@@ -5,14 +5,23 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { apiFetch, setSessionFlag } from '$lib/api-client.js';
+	import ExistingSessionWarning from '$lib/components/ExistingSessionWarning.svelte';
 	import Icon from '$lib/components/Icons.svelte';
 	import { onMount } from 'svelte';
+
+	interface ExistingSessionInfo {
+		device: string;
+		location: string;
+		since: number;
+	}
 
 	let passphrase = $state('');
 	let error = $state('');
 	let isShaking = $state(false);
 	let showPassphrase = $state(false);
 	let isSubmitting = $state(false);
+	let existingSessionInfo = $state<ExistingSessionInfo | null>(null);
+	let storedPassphrase = $state('');
 
 	onMount(async () => {
 		try {
@@ -25,6 +34,22 @@
 		}
 	});
 
+	async function getOptionalLocation(): Promise<{ lat: number; lng: number } | null> {
+		if (!navigator.geolocation) return null;
+
+		try {
+			const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+				navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+			});
+			return {
+				lat: position.coords.latitude,
+				lng: position.coords.longitude
+			};
+		} catch {
+			return null;
+		}
+	}
+
 	function handleKeypress(e: KeyboardEvent) {
 		if (e.key === 'Enter') {
 			e.preventDefault();
@@ -32,36 +57,75 @@
 		}
 	}
 
-	async function handleSubmit() {
-		if (!passphrase || isSubmitting) return;
+	async function handleLogin(passphraseInput: string, forceLogout = false) {
+		if (!passphraseInput || isSubmitting) return;
 
 		error = '';
 		isSubmitting = true;
 
 		try {
+			const location = await getOptionalLocation();
+			const payload: {
+				passphrase: string;
+				forceLogout: boolean;
+				lat?: number;
+				lng?: number;
+			} = {
+				passphrase: passphraseInput,
+				forceLogout
+			};
+
+			if (location) {
+				payload.lat = location.lat;
+				payload.lng = location.lng;
+			}
+
 			const res = await apiFetch('/api/auth', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ passphrase })
+				body: JSON.stringify(payload)
 			});
 
 			const data = await res.json();
 
+			if (data?.error === 'already_logged_in') {
+				existingSessionInfo = data.existingSession;
+				storedPassphrase = passphraseInput;
+				return;
+			}
+
 			if (res.ok && data.success) {
 				setSessionFlag();
+				existingSessionInfo = null;
+				storedPassphrase = '';
 				goto('/journal');
-			} else {
-				error = 'Invalid passphrase';
+				return;
+			}
+
+			error = typeof data?.error === 'string' ? data.error : 'Invalid passphrase';
+		} catch {
+			error = 'Connection failed';
+		} finally {
+			if (error) {
 				isShaking = true;
 				setTimeout(() => isShaking = false, 500);
 			}
-		} catch {
-			error = 'Connection failed';
-			isShaking = true;
-			setTimeout(() => isShaking = false, 500);
-		} finally {
 			isSubmitting = false;
 		}
+	}
+
+	async function handleForceLogout() {
+		if (!storedPassphrase) return;
+		await handleLogin(storedPassphrase, true);
+	}
+
+	function handleCancelForceLogout() {
+		existingSessionInfo = null;
+		storedPassphrase = '';
+	}
+
+	async function handleSubmit() {
+		await handleLogin(passphrase);
 	}
 </script>
 
@@ -71,40 +135,50 @@
 			clara
 		</h1>
 
-		<div class={isShaking ? 'shake' : ''}>
-			<div class="passphrase-wrapper">
-				<input
-					type={showPassphrase ? 'text' : 'password'}
-					bind:value={passphrase}
-					placeholder="Passphrase"
-					class="w-full text-center"
-					onkeydown={handleKeypress}
-				/>
-				<button
-					type="button"
-					class="toggle-visibility"
-					onclick={() => showPassphrase = !showPassphrase}
-					aria-label={showPassphrase ? 'Hide passphrase' : 'Show passphrase'}
-				>
-					<Icon name={showPassphrase ? 'eye-off' : 'eye'} size={16} />
-				</button>
+		{#if existingSessionInfo}
+			<ExistingSessionWarning
+				device={existingSessionInfo.device}
+				location={existingSessionInfo.location}
+				since={existingSessionInfo.since}
+				onForceLogout={handleForceLogout}
+				onCancel={handleCancelForceLogout}
+			/>
+		{:else}
+			<div class={isShaking ? 'shake' : ''}>
+				<div class="passphrase-wrapper">
+					<input
+						type={showPassphrase ? 'text' : 'password'}
+						bind:value={passphrase}
+						placeholder="Passphrase"
+						class="w-full text-center"
+						onkeydown={handleKeypress}
+					/>
+					<button
+						type="button"
+						class="toggle-visibility"
+						onclick={() => showPassphrase = !showPassphrase}
+						aria-label={showPassphrase ? 'Hide passphrase' : 'Show passphrase'}
+					>
+						<Icon name={showPassphrase ? 'eye-off' : 'eye'} size={16} />
+					</button>
+				</div>
 			</div>
-		</div>
 
-		{#if error}
-			<p class="text-[var(--missed)] text-sm text-center mt-[var(--space-md)] animate-fade-in">
-				{error}
-			</p>
+			{#if error}
+				<p class="text-[var(--missed)] text-sm text-center mt-[var(--space-md)] animate-fade-in">
+					{error}
+				</p>
+			{/if}
+
+			<button
+				type="button"
+				disabled={!passphrase || isSubmitting}
+				onclick={handleSubmit}
+				class="w-full mt-[var(--space-lg)] py-[var(--space-md)] bg-[var(--surface-elevated)] text-[var(--text)] rounded-[var(--radius-md)] transition-colors hover:bg-[var(--border)] disabled:opacity-40 disabled:cursor-not-allowed"
+			>
+				{isSubmitting ? 'Unlocking...' : 'Unlock'}
+			</button>
 		{/if}
-
-		<button
-			type="button"
-			disabled={!passphrase || isSubmitting}
-			onclick={handleSubmit}
-			class="w-full mt-[var(--space-lg)] py-[var(--space-md)] bg-[var(--surface-elevated)] text-[var(--text)] rounded-[var(--radius-md)] transition-colors hover:bg-[var(--border)] disabled:opacity-40 disabled:cursor-not-allowed"
-		>
-			{isSubmitting ? 'Unlocking...' : 'Unlock'}
-		</button>
 
 		<p class="text-xs text-[var(--text-muted)] text-center mt-[var(--space-lg)]">
 			All data is encrypted at rest.

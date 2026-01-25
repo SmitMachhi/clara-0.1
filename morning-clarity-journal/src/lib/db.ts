@@ -38,6 +38,7 @@ function getDbInternal(): Database.Database {
 			date TEXT UNIQUE NOT NULL,
 			timestamp TEXT NOT NULL,
 			location_id INTEGER,
+			location_id_encrypted BLOB,
 			captured_lat REAL,
 			captured_lng REAL,
 			captured_lat_encrypted BLOB,
@@ -74,6 +75,12 @@ function getDbInternal(): Database.Database {
 			lat_encrypted BLOB NOT NULL,
 			lng_encrypted BLOB NOT NULL,
 			address_encrypted BLOB
+		);
+
+		CREATE TABLE IF NOT EXISTS auth_rate_limits (
+			ip TEXT PRIMARY KEY,
+			count INTEGER NOT NULL,
+			reset_at INTEGER NOT NULL
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date);
@@ -131,6 +138,10 @@ function getDbInternal(): Database.Database {
 		db.exec('ALTER TABLE entries ADD COLUMN captured_lng_encrypted BLOB;');
 	}
 
+	if (!entriesColumns.includes('location_id_encrypted')) {
+		db.exec('ALTER TABLE entries ADD COLUMN location_id_encrypted BLOB;');
+	}
+
 	const templatesInfo = db.prepare('PRAGMA table_info(templates)').all() as { name: string }[];
 	const templatesColumns = templatesInfo.map(col => col.name);
 
@@ -150,6 +161,7 @@ function getDbInternal(): Database.Database {
 	backfillTemplatePresetParsedJson(db);
 	backfillLocationsEncryptedData(db);
 	backfillEntryCapturedCoordinates(db);
+	backfillEntryLocationIdEncryption(db);
 
 	const activeTemplateId = ensureActiveTemplate();
 	backfillEntryTemplateIds(activeTemplateId);
@@ -218,6 +230,16 @@ export interface TemplatePresetSummary {
 	created_at: string;
 }
 
+export interface ActiveSession {
+	nonce: string;
+	expiresAt: number;
+	deviceInfo: string;
+	locationId: number | null;
+	locationLat: number | null;
+	locationLng: number | null;
+	createdAt: number;
+}
+
 /**
  * Save a new journal entry with client-encrypted data
  */
@@ -234,14 +256,15 @@ export function saveEntry(
 	const dataBuffer = Buffer.from(encryptedData, 'utf8');
 	const capturedLatEncrypted = encryptOptionalNumber(capturedLat ?? null);
 	const capturedLngEncrypted = encryptOptionalNumber(capturedLng ?? null);
+	const locationIdEncrypted = encryptOptionalNumber(locationId);
 	
 	const result = database.prepare(`
-		INSERT INTO entries (date, timestamp, location_id, captured_lat, captured_lng, captured_lat_encrypted, captured_lng_encrypted, template_id, encrypted_data)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO entries (date, timestamp, location_id, location_id_encrypted, captured_lat, captured_lng, captured_lat_encrypted, captured_lng_encrypted, template_id, encrypted_data)
+		VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
 	`).run(
 		date,
 		timestamp,
-		locationId,
+		locationIdEncrypted,
 		null,
 		null,
 		capturedLatEncrypted,
@@ -269,14 +292,15 @@ export function updateEntry(
 	const dataBuffer = Buffer.from(encryptedData, 'utf8');
 	const capturedLatEncrypted = encryptOptionalNumber(capturedLat ?? null);
 	const capturedLngEncrypted = encryptOptionalNumber(capturedLng ?? null);
+	const locationIdEncrypted = encryptOptionalNumber(locationId);
 	
 	const result = database.prepare(`
 		UPDATE entries 
-		SET timestamp = ?, location_id = ?, captured_lat = ?, captured_lng = ?, captured_lat_encrypted = ?, captured_lng_encrypted = ?, template_id = ?, encrypted_data = ?
+		SET timestamp = ?, location_id = NULL, location_id_encrypted = ?, captured_lat = ?, captured_lng = ?, captured_lat_encrypted = ?, captured_lng_encrypted = ?, template_id = ?, encrypted_data = ?
 		WHERE date = ?
 	`).run(
 		timestamp,
-		locationId,
+		locationIdEncrypted,
 		null,
 		null,
 		capturedLatEncrypted,
@@ -295,22 +319,76 @@ export function updateEntry(
 export function getAllEntries(): Entry[] {
 	const database = getDb();
 	const rows = database.prepare(`
-		SELECT e.id, e.date, e.timestamp, e.location_id, e.captured_lat_encrypted, e.captured_lng_encrypted, e.template_id, e.created_at, l.name_encrypted as location_name_encrypted
-		FROM entries e
-		LEFT JOIN locations l ON e.location_id = l.id
-		ORDER BY e.date DESC
-	`).all() as Array<Entry & { location_name_encrypted: Buffer | null; captured_lat_encrypted: Buffer | null; captured_lng_encrypted: Buffer | null }>;
+		SELECT id, date, timestamp, location_id_encrypted, captured_lat_encrypted, captured_lng_encrypted, template_id, created_at
+		FROM entries
+		ORDER BY date DESC
+	`).all() as Array<{
+		id: number;
+		date: string;
+		timestamp: string;
+		location_id_encrypted: Buffer | null;
+		captured_lat_encrypted: Buffer | null;
+		captured_lng_encrypted: Buffer | null;
+		template_id: number | null;
+		created_at: string;
+	}>;
+
+	const locations = getLocations();
+	const locationMap = new Map<number, string>();
+	for (const loc of locations) {
+		locationMap.set(loc.id, loc.name);
+	}
 
 	return rows.map(row => {
-		const locationName = decryptOptionalString(row.location_name_encrypted);
+		const locationId = decryptOptionalNumber(row.location_id_encrypted);
+		const locationName = locationId != null ? locationMap.get(locationId) : undefined;
 		return {
 			id: row.id,
 			date: row.date,
 			timestamp: row.timestamp,
-			location_id: row.location_id,
+			location_id: locationId,
 			location_name: locationName ?? undefined,
 			captured_lat: decryptOptionalNumber(row.captured_lat_encrypted),
 			captured_lng: decryptOptionalNumber(row.captured_lng_encrypted),
+			template_id: row.template_id,
+			created_at: row.created_at
+		};
+	});
+}
+
+export function getRecentEntrySummaries(limit: number): Entry[] {
+	const database = getDb();
+	const rows = database.prepare(`
+		SELECT id, date, timestamp, location_id_encrypted, template_id, created_at
+		FROM entries
+		ORDER BY date DESC
+		LIMIT ?
+	`).all(limit) as Array<{
+		id: number;
+		date: string;
+		timestamp: string;
+		location_id_encrypted: Buffer | null;
+		template_id: number | null;
+		created_at: string;
+	}>;
+
+	const locations = getLocations();
+	const locationMap = new Map<number, string>();
+	for (const loc of locations) {
+		locationMap.set(loc.id, loc.name);
+	}
+
+	return rows.map(row => {
+		const locationId = decryptOptionalNumber(row.location_id_encrypted);
+		const locationName = locationId != null ? locationMap.get(locationId) : undefined;
+		return {
+			id: row.id,
+			date: row.date,
+			timestamp: row.timestamp,
+			location_id: locationId,
+			location_name: locationName ?? undefined,
+			captured_lat: null,
+			captured_lng: null,
 			template_id: row.template_id,
 			created_at: row.created_at
 		};
@@ -323,20 +401,32 @@ export function getAllEntries(): Entry[] {
 export function getEntryByDate(date: string): (EntryWithData & { rawData: Buffer }) | null {
 	const database = getDb();
 	const row = database.prepare(`
-		SELECT e.id, e.date, e.timestamp, e.location_id, e.captured_lat_encrypted, e.captured_lng_encrypted, e.template_id, e.encrypted_data, e.created_at, l.name_encrypted as location_name_encrypted
-		FROM entries e
-		LEFT JOIN locations l ON e.location_id = l.id
-		WHERE e.date = ?
-	`).get(date) as (Entry & { encrypted_data: Buffer; location_name_encrypted: Buffer | null; captured_lat_encrypted: Buffer | null; captured_lng_encrypted: Buffer | null }) | undefined;
+		SELECT id, date, timestamp, location_id_encrypted, captured_lat_encrypted, captured_lng_encrypted, template_id, encrypted_data, created_at
+		FROM entries
+		WHERE date = ?
+	`).get(date) as {
+		id: number;
+		date: string;
+		timestamp: string;
+		location_id_encrypted: Buffer | null;
+		captured_lat_encrypted: Buffer | null;
+		captured_lng_encrypted: Buffer | null;
+		template_id: number | null;
+		encrypted_data: Buffer;
+		created_at: string;
+	} | undefined;
 
 	if (!row) return null;
+
+	const locationId = decryptOptionalNumber(row.location_id_encrypted);
+	const location = locationId != null ? getLocationById(locationId) : null;
 
 	return {
 		id: row.id,
 		date: row.date,
 		timestamp: row.timestamp,
-		location_id: row.location_id,
-		location_name: decryptOptionalString(row.location_name_encrypted) ?? undefined,
+		location_id: locationId,
+		location_name: location?.name,
 		captured_lat: decryptOptionalNumber(row.captured_lat_encrypted),
 		rawData: row.encrypted_data,
 		captured_lng: decryptOptionalNumber(row.captured_lng_encrypted),
@@ -344,6 +434,74 @@ export function getEntryByDate(date: string): (EntryWithData & { rawData: Buffer
 		created_at: row.created_at,
 		data: {} as any
 	};
+}
+
+export function setActiveSession(
+	nonce: string,
+	expiresAt: number,
+	deviceInfo: string,
+	locationId: number | null,
+	locationLat: number | null,
+	locationLng: number | null
+): void {
+	const database = getDb();
+	const createdAt = Date.now();
+	const sessionData = JSON.stringify({
+		nonce,
+		expiresAt,
+		deviceInfo,
+		locationId,
+		locationLat,
+		locationLng,
+		createdAt
+	});
+	database.prepare(`
+		INSERT INTO config (key, value)
+		VALUES ('active_session', ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value
+	`).run(sessionData);
+}
+
+export function clearActiveSession(): void {
+	const database = getDb();
+	database.prepare('DELETE FROM config WHERE key = \'active_session\'').run();
+}
+
+export function getActiveSession(): ActiveSession | null {
+	const database = getDb();
+	const row = database.prepare('SELECT value FROM config WHERE key = \'active_session\'').get() as { value: string } | undefined;
+	if (!row?.value) return null;
+	try {
+		const session = JSON.parse(row.value) as ActiveSession;
+		if (!session.nonce || typeof session.expiresAt !== 'number') return null;
+		return session;
+	} catch {
+		return null;
+	}
+}
+
+export function getAuthRateLimit(ip: string): { count: number; resetAt: number } | null {
+	const database = getDb();
+	const row = database.prepare('SELECT count, reset_at FROM auth_rate_limits WHERE ip = ?').get(ip) as {
+		count: number;
+		reset_at: number;
+	} | undefined;
+	if (!row) return null;
+	return { count: row.count, resetAt: row.reset_at };
+}
+
+export function setAuthRateLimit(ip: string, count: number, resetAt: number): void {
+	const database = getDb();
+	database.prepare(`
+		INSERT INTO auth_rate_limits (ip, count, reset_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(ip) DO UPDATE SET count = excluded.count, reset_at = excluded.reset_at
+	`).run(ip, count, resetAt);
+}
+
+export function clearAuthRateLimit(ip: string): void {
+	const database = getDb();
+	database.prepare('DELETE FROM auth_rate_limits WHERE ip = ?').run(ip);
 }
 
 /**
@@ -564,6 +722,29 @@ export function getLocations(): Location[] {
 		.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+const LOCATION_MATCH_TOLERANCE_KM = 0.5;
+
+function haversineDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+	const R = 6371;
+	const dLat = (lat2 - lat1) * Math.PI / 180;
+	const dLng = (lng2 - lng1) * Math.PI / 180;
+	const a = Math.sin(dLat / 2) ** 2 +
+		Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+		Math.sin(dLng / 2) ** 2;
+	const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+	return R * c;
+}
+
+export function findMatchingLocation(lat: number, lng: number): Location | null {
+	const locations = getLocations();
+	for (const loc of locations) {
+		if (haversineDistanceKm(lat, lng, loc.lat, loc.lng) < LOCATION_MATCH_TOLERANCE_KM) {
+			return loc;
+		}
+	}
+	return null;
+}
+
 /**
  * Add a new location
  */
@@ -745,21 +926,23 @@ function migrateEncryptedDataToNewKey(database: Database.Database): void {
 		};
 
 		const entries = database.prepare(
-			'SELECT id, encrypted_data, captured_lat_encrypted, captured_lng_encrypted FROM entries'
+			'SELECT id, encrypted_data, captured_lat_encrypted, captured_lng_encrypted, location_id_encrypted FROM entries'
 		).all() as Array<{
 			id: number;
 			encrypted_data: Buffer;
 			captured_lat_encrypted: Buffer | null;
 			captured_lng_encrypted: Buffer | null;
+			location_id_encrypted: Buffer | null;
 		}>;
 		const updateEntry = database.prepare(
-			'UPDATE entries SET encrypted_data = ?, captured_lat_encrypted = ?, captured_lng_encrypted = ? WHERE id = ?'
+			'UPDATE entries SET encrypted_data = ?, captured_lat_encrypted = ?, captured_lng_encrypted = ?, location_id_encrypted = ? WHERE id = ?'
 		);
 		for (const row of entries) {
 			const newData = reEncryptRow(row.encrypted_data);
 			const newLat = row.captured_lat_encrypted ? reEncryptRow(row.captured_lat_encrypted) : null;
 			const newLng = row.captured_lng_encrypted ? reEncryptRow(row.captured_lng_encrypted) : null;
-			updateEntry.run(newData, newLat, newLng, row.id);
+			const newLocationId = row.location_id_encrypted ? reEncryptRow(row.location_id_encrypted) : null;
+			updateEntry.run(newData, newLat, newLng, newLocationId, row.id);
 		}
 
 		const locations = database.prepare(
@@ -922,4 +1105,29 @@ function backfillEntryCapturedCoordinates(database: Database.Database): void {
 		const lngEncrypted = row.captured_lng_encrypted ?? encryptOptionalNumber(row.captured_lng);
 		update.run(null, null, latEncrypted, lngEncrypted, row.id);
 	}
+}
+
+function backfillEntryLocationIdEncryption(database: Database.Database): void {
+	const rows = database.prepare(`
+		SELECT id, location_id
+		FROM entries
+		WHERE location_id IS NOT NULL AND location_id_encrypted IS NULL
+	`).all() as Array<{ id: number; location_id: number }>;
+
+	if (rows.length === 0) return;
+
+	const migrate = database.transaction(() => {
+		const update = database.prepare(`
+			UPDATE entries
+			SET location_id = NULL, location_id_encrypted = ?
+			WHERE id = ?
+		`);
+
+		for (const row of rows) {
+			const encrypted = encryptOptionalNumber(row.location_id);
+			update.run(encrypted, row.id);
+		}
+	});
+
+	migrate();
 }

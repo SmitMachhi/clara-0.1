@@ -1,18 +1,12 @@
 import { randomBytes, createHmac, timingSafeEqual, createHash, pbkdf2Sync } from 'crypto';
 import { env } from '$env/dynamic/private';
+import { getAuthRateLimit, setAuthRateLimit, clearAuthRateLimit } from '$lib/db.js';
 
 const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 const RATE_LIMIT_MAX_ATTEMPTS = 5;
 const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
 const PBKDF2_ITERATIONS = 100000;
 const PBKDF2_KEYLEN = 32;
-
-interface RateLimitEntry {
-	count: number;
-	resetAt: number;
-}
-
-const rateLimitMap = new Map<string, RateLimitEntry>();
 
 function base64UrlEncode(data: Buffer): string {
 	return data.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
@@ -24,7 +18,7 @@ function base64UrlDecode(str: string): Buffer {
 	return Buffer.from(padded, 'base64');
 }
 
-export function createSessionToken(): { token: string; expiresAt: number } {
+export function createSessionToken(): { token: string; expiresAt: number; nonce: string } {
 	const nonce = randomBytes(16).toString('hex');
 	const expiresAt = Date.now() + SESSION_DURATION_MS;
 	const payload = JSON.stringify({ exp: expiresAt, nonce });
@@ -37,14 +31,14 @@ export function createSessionToken(): { token: string; expiresAt: number } {
 	const signatureBase64Url = base64UrlEncode(hmac.digest());
 	
 	const token = `${payloadBase64Url}.${signatureBase64Url}`;
-	return { token, expiresAt };
+	return { token, expiresAt, nonce };
 }
 
-export function verifySessionToken(token: string | undefined): boolean {
-	if (!token) return false;
+export function verifySessionToken(token: string | undefined): { exp: number; nonce: string } | null {
+	if (!token) return null;
 	
 	const parts = token.split('.');
-	if (parts.length !== 2) return false;
+	if (parts.length !== 2) return null;
 	
 	const [payloadBase64Url, signatureBase64Url] = parts;
 	
@@ -56,30 +50,30 @@ export function verifySessionToken(token: string | undefined): boolean {
 	
 	try {
 		const providedSignature = base64UrlDecode(signatureBase64Url);
-		if (providedSignature.length !== expectedSignature.length) return false;
+		if (providedSignature.length !== expectedSignature.length) return null;
 		
 		const signaturesMatch = timingSafeEqual(expectedSignature, providedSignature);
-		if (!signaturesMatch) return false;
+		if (!signaturesMatch) return null;
 		
 		const payloadJson = base64UrlDecode(payloadBase64Url).toString('utf8');
-		const payload = JSON.parse(payloadJson);
+		const payload = JSON.parse(payloadJson) as { exp: number; nonce: string };
 		
-		if (typeof payload.exp !== 'number') return false;
-		if (Date.now() > payload.exp) return false;
+		if (typeof payload.exp !== 'number' || typeof payload.nonce !== 'string') return null;
+		if (Date.now() > payload.exp) return null;
 		
-		return true;
+		return payload;
 	} catch {
-		return false;
+		return null;
 	}
 }
 
 export function checkAuthRateLimit(ip: string): { ok: boolean; retryAfter?: number } {
-	const entry = rateLimitMap.get(ip);
+	const entry = getAuthRateLimit(ip);
 	if (!entry) return { ok: true };
 	
 	const now = Date.now();
 	if (now >= entry.resetAt) {
-		rateLimitMap.delete(ip);
+		clearAuthRateLimit(ip);
 		return { ok: true };
 	}
 	
@@ -93,18 +87,17 @@ export function checkAuthRateLimit(ip: string): { ok: boolean; retryAfter?: numb
 
 export function recordAuthFailure(ip: string): void {
 	const now = Date.now();
-	const entry = rateLimitMap.get(ip);
+	const entry = getAuthRateLimit(ip);
 	
 	if (!entry || now >= entry.resetAt) {
-		rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+		setAuthRateLimit(ip, 1, now + RATE_LIMIT_WINDOW_MS);
 	} else {
-		entry.count++;
-		rateLimitMap.set(ip, entry);
+		setAuthRateLimit(ip, entry.count + 1, entry.resetAt);
 	}
 }
 
 export function clearAuthFailures(ip: string): void {
-	rateLimitMap.delete(ip);
+	clearAuthRateLimit(ip);
 }
 
 export function verifyPassphrase(input: string): boolean {

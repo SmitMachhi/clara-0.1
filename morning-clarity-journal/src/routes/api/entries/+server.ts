@@ -1,15 +1,16 @@
 import type { RequestHandler } from './$types';
-import { getActiveTemplate, saveEntry, getAllEntries, getEntryDates } from '$lib/db.js';
+import { getActiveTemplate, saveEntry, getEntryDates, getRecentEntrySummaries } from '$lib/db.js';
+import { DISPLAY } from '$lib/constants.js';
 import { formatDateISO, formatDateTime, isPastCutoff } from '$lib/utils.js';
 import { validateCoordinates } from '$lib/validation.js';
-import { parseJsonBody, successResponse, errorResponse } from '$lib/api-helpers.js';
+import { parseJsonBody, successResponse, errorResponse, noStoreHeaders } from '$lib/api-helpers.js';
 import { encrypt } from '$lib/server/crypto.js';
 
 export const GET: RequestHandler = async () => {
-	const entries = getAllEntries();
 	const entryDates = getEntryDates();
+	const recentEntries = getRecentEntrySummaries(DISPLAY.RECENT_ENTRIES_LIMIT);
 
-	return successResponse({ entries, entryDates });
+	return successResponse({ recentEntries, entryDates }, noStoreHeaders());
 };
 
 interface EntryPayload {
@@ -20,30 +21,30 @@ interface EntryPayload {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
-	const body = await parseJsonBody<EntryPayload>(request);
+	const body = await parseJsonBody<EntryPayload>(request, 102400);
 	if (body.error) {
-		return errorResponse(body.error);
+		return errorResponse(body.error, 400, noStoreHeaders());
 	}
 
 	const { locationId, data, capturedLat, capturedLng } = body.data!;
 
 	if (!data || typeof data !== 'object') {
-		return errorResponse('Invalid data');
+		return errorResponse('Invalid data', 400, noStoreHeaders());
 	}
 
 	if (locationId !== null && (typeof locationId !== 'number' || locationId <= 0)) {
-		return errorResponse('Invalid location ID');
+		return errorResponse('Invalid location ID', 400, noStoreHeaders());
 	}
 
 	if (capturedLat !== null && capturedLat !== undefined) {
 		const validation = validateCoordinates(capturedLat, capturedLng || 0);
 		if (!validation.valid) {
-			return errorResponse(validation.error!);
+			return errorResponse(validation.error!, 400, noStoreHeaders());
 		}
 	}
 
 	if (isPastCutoff()) {
-		return errorResponse('Past cutoff', 403);
+		return errorResponse('Past cutoff', 403, noStoreHeaders());
 	}
 
 	const now = new Date();
@@ -53,12 +54,12 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const template = getActiveTemplate();
 		if (!template) {
-			return errorResponse('Failed to load template', 500);
+			return errorResponse('Failed to load template', 500, noStoreHeaders());
 		}
 		const encryptedData = encrypt(JSON.stringify(data));
 		const id = saveEntry(date, timestamp, locationId, encryptedData, template.id, capturedLat, capturedLng);
-		return successResponse({ id, date });
+		return successResponse({ id, date }, noStoreHeaders());
 	} catch (error) {
-		return errorResponse('Entry for today already exists');
+		return errorResponse('Entry for today already exists', 400, noStoreHeaders());
 	}
 };

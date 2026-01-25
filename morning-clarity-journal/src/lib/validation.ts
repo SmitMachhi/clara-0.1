@@ -23,6 +23,9 @@ export function validateLocationName(name: unknown): { valid: boolean; error?: s
 	if (!name || typeof name !== 'string' || name.trim().length === 0) {
 		return { valid: false, error: 'Invalid location name' };
 	}
+	if (name.trim().length > 100) {
+		return { valid: false, error: 'Location name too long (max 100 characters)' };
+	}
 	return { valid: true };
 }
 

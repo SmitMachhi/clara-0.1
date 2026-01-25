@@ -38,7 +38,7 @@ export const GET: RequestHandler = async () => {
 };
 
 export const POST: RequestHandler = async ({ request }) => {
-	const body = await parseJsonBody<TemplatePayload>(request);
+	const body = await parseJsonBody<TemplatePayload>(request, 32768);
 	if (body.error) {
 		return errorResponse(body.error);
 	}

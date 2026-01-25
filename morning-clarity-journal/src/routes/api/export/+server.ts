@@ -8,6 +8,7 @@ import {
 	getTemplatePresetById
 } from '$lib/db.js';
 import { decrypt } from '$lib/server/crypto.js';
+import { noStoreHeaders } from '$lib/api-helpers.js';
 
 export const GET: RequestHandler = async () => {
 	const entries = getAllEntries();
@@ -64,6 +65,7 @@ export const GET: RequestHandler = async () => {
 
 	return new Response(json, {
 		headers: {
+			...noStoreHeaders(),
 			'Content-Type': 'application/json',
 			'Content-Disposition': `attachment; filename="${filename}"`
 		}

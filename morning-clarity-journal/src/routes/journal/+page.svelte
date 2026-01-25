@@ -44,10 +44,16 @@
 	const today = formatDateISO(new Date());
 	const currentYear = new Date().getFullYear();
 	const yearDates = getYearDates(currentYear);
-	const fieldIds = $derived(template ? template.fieldIds : []);
+	const hpFieldIds = $derived.by(() => {
+		if (!template) return [];
+		return template.questions
+			.flatMap(question => question.fields)
+			.filter(field => field.type === 'hp')
+			.map(field => field.id);
+	});
 
-	let completedFields = $derived(fieldIds.filter(id => formData[id]?.trim().length > 0).length);
-	let totalFields = $derived(fieldIds.length);
+	let completedFields = $derived(hpFieldIds.filter(id => formData[id]?.trim().length > 0).length);
+	let totalFields = $derived(hpFieldIds.length);
 	let isComplete = $derived(completedFields === totalFields);
 
 	onMount(() => {
@@ -55,8 +61,14 @@
 		document.documentElement.classList.add('ritual');
 		isPastTime = isPastCutoff();
 		const interval = setInterval(() => {
-			dateParts = getDateTimeParts(new Date());
-			isPastTime = isPastCutoff();
+			const nextParts = getDateTimeParts(new Date());
+			if (nextParts.time !== dateParts.time || nextParts.day !== dateParts.day) {
+				dateParts = nextParts;
+			}
+			const nextIsPast = isPastCutoff();
+			if (nextIsPast !== isPastTime) {
+				isPastTime = nextIsPast;
+			}
 		}, TIME.CLOCK_UPDATE_INTERVAL_MS);
 
 		const beforeUnloadHandler = (event: BeforeUnloadEvent) => {
@@ -68,19 +80,25 @@
 
 		window.addEventListener('beforeunload', beforeUnloadHandler);
 
-		apiFetch('/api/session')
-			.then(res => {
-				if (res.status === 401) goto('/');
-			})
-			.catch(() => goto('/'));
+		const init = async () => {
+			try {
+				const res = await apiFetch('/api/session');
+				if (res.status !== 204) {
+					goto('/');
+					return;
+				}
+			} catch {
+				goto('/');
+				return;
+			}
 
-		loadAllData()
-			.then(ok => {
-				if (!ok) return;
-				hasEntryToday = entryDates.includes(today);
-				restoreDraft();
-			})
-			.catch(console.error);
+			const ok = await loadAllData();
+			if (!ok) return;
+			hasEntryToday = entryDates.includes(today);
+			restoreDraft();
+		};
+
+		void init();
 
 		return () => {
 			clearInterval(interval);

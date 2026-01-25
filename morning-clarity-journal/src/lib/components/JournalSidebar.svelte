@@ -3,7 +3,7 @@
 <!-- location: src/lib/components/JournalSidebar.svelte -->
 
 <script lang="ts">
-	import { isToday, isDateInPast, extractTimeFromTimestamp } from '$lib/utils.js';
+	import { formatDateISO, isDateInPast, extractTimeFromTimestamp } from '$lib/utils.js';
 	import { calculateStats, getRecentEntries } from '$lib/stats.js';
 	import Icon from '$lib/components/Icons.svelte';
 
@@ -35,10 +35,12 @@
 
 	const stats = $derived(calculateStats(entryDates, yearDates));
 	const recentEntries = $derived(getRecentEntries(yearDates, entryDates, entries));
+	const entryDateSet = $derived(new Set(entryDates));
+	const today = $derived(formatDateISO(new Date()));
 
 	function getDayStatus(dateStr: string): 'completed' | 'missed' | 'future' | 'today' {
-		if (isToday(dateStr)) return 'today';
-		if (entryDates.includes(dateStr)) return 'completed';
+		if (dateStr === today) return 'today';
+		if (entryDateSet.has(dateStr)) return 'completed';
 		if (isDateInPast(dateStr)) return 'missed';
 		return 'future';
 	}
@@ -69,21 +71,23 @@
 
 		</div>
 
-		<div class="tracker">
-			{#each yearDates as day}
-				{@const status = getDayStatus(day)}
-				<div
-					class="tracker-day {status}"
-					onclick={() => status === 'completed' && onViewEntry(day)}
-					title={day}
-					role={status === 'completed' ? 'button' : 'presentation'}
-				></div>
-			{/each}
-		</div>
+		<div class="tracker-card">
+			<div class="tracker">
+				{#each yearDates as day}
+					{@const status = getDayStatus(day)}
+					<div
+						class="tracker-day {status}"
+						onclick={() => status === 'completed' && onViewEntry(day)}
+						title={day}
+						role={status === 'completed' ? 'button' : 'presentation'}
+					></div>
+				{/each}
+			</div>
 
-		<div class="legend">
-			<span><span class="legend-dot completed"></span> completed</span>
-			<span><span class="legend-dot missed"></span> missed</span>
+			<div class="legend">
+				<span><span class="legend-dot completed"></span> completed</span>
+				<span><span class="legend-dot missed"></span> missed</span>
+			</div>
 		</div>
 
 		<h3 class="recent-heading">Recent</h3>

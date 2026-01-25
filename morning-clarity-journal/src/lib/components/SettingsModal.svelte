@@ -1,5 +1,5 @@
-<!-- purpose: Settings modal with location management and database backup -->
-<!-- context: Manage saved locations and create database backups -->
+<!-- purpose: Settings modal with Apple-style grouped list layout -->
+<!-- context: Manage locations, database backups/export/wipe, and template presets -->
 <!-- location: src/lib/components/SettingsModal.svelte -->
 
 <script lang="ts">
@@ -12,6 +12,10 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Modal from '$lib/components/Modal.svelte';
 	import Dropdown from '$lib/components/Dropdown.svelte';
+	import SegmentedControl from '$lib/components/SegmentedControl.svelte';
+	import SettingsGroup from '$lib/components/SettingsGroup.svelte';
+	import SettingsRow from '$lib/components/SettingsRow.svelte';
+	import ExpandableSection from '$lib/components/ExpandableSection.svelte';
 
 	let {
 		open,
@@ -35,7 +39,6 @@
 	let locationError = $state('');
 	let isAddingLocation = $state(false);
 	let isDeletingLocation = $state<number | null>(null);
-	let showManualEntry = $state(false);
 	let isCreatingBackup = $state(false);
 	let backupError = $state('');
 	let backupSuccess = $state('');
@@ -44,6 +47,8 @@
 	let isLoadingTemplate = $state(false);
 	let isSavingTemplate = $state(false);
 	let templateDraft = $state('');
+	let highlightedTemplate = $state('');
+	let highlightTimeout: ReturnType<typeof setTimeout> | null = null;
 	let templateLoadError = $state('');
 	let templateValidationErrors = $state<string[]>([]);
 	let templateSuccess = $state('');
@@ -56,6 +61,13 @@
 	let presetSuccess = $state('');
 	let renamingPresetId = $state<number | null>(null);
 	let renamingPresetName = $state('');
+	let isExporting = $state(false);
+	let showWipeConfirm = $state(false);
+	let isWiping = $state(false);
+	let wipeError = $state('');
+	let templateEditorRef = $state<HTMLTextAreaElement | null>(null);
+	let templateHighlightRef = $state<HTMLPreElement | null>(null);
+	let templateLineRef = $state<HTMLDivElement | null>(null);
 	const PRESET_LIMIT = 5;
 
 	const TEMPLATE_EXAMPLE = [
@@ -67,7 +79,74 @@
 		'<mp>Evidence this fear might not be true?</mp>',
 		'<mp>Upside if I act despite fear?</mp>',
 		'</hp>'
-	].join('\\n');
+	].join('\n');
+
+	const segments = [
+		{ value: 'locations', label: 'Locations' },
+		{ value: 'database', label: 'Database' },
+		{ value: 'template', label: 'Template' }
+	];
+
+	const templateLineNumbers = $derived.by(() => {
+		const count = Math.max(1, templateDraft.split(/\r?\n/).length);
+		return Array.from({ length: count }, (_, i) => i + 1);
+	});
+
+	$effect(() => {
+		const draft = templateDraft;
+		if (highlightTimeout) {
+			clearTimeout(highlightTimeout);
+		}
+		highlightTimeout = setTimeout(() => {
+			highlightedTemplate = highlightTemplate(draft);
+		}, 120);
+
+		return () => {
+			if (highlightTimeout) {
+				clearTimeout(highlightTimeout);
+			}
+		};
+	});
+
+	function syncTemplateScroll() {
+		if (!templateEditorRef) return;
+		if (templateHighlightRef) {
+			templateHighlightRef.scrollTop = templateEditorRef.scrollTop;
+			templateHighlightRef.scrollLeft = templateEditorRef.scrollLeft;
+		}
+		if (templateLineRef) {
+			templateLineRef.scrollTop = templateEditorRef.scrollTop;
+		}
+	}
+
+	function escapeHtml(value: string): string {
+		return value
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+	}
+
+	function highlightTemplate(source: string): string {
+		if (typeof source !== 'string') {
+			return '';
+		}
+
+		// Limit input length to prevent DoS
+		const truncated = source.length > 50000 ? source.slice(0, 50000) : source;
+
+		const escaped = escapeHtml(truncated);
+		const withHp = escaped.replace(/&lt;\/?hp(?:\s+label=&quot;[^&]*&quot;)?&gt;/gi, (match) => {
+			return `<span class="sg-hl-hp">${match}</span>`;
+		});
+		const withMp = withHp.replace(/&lt;\/?mp(?:\s+label=&quot;[^&]*&quot;)?&gt;/gi, (match) => {
+			return `<span class="sg-hl-mp">${match}</span>`;
+		});
+		return withMp.replace(/label=&quot;([^&]*)&quot;/gi, (_match, value) => {
+			return `<span class="sg-hl-attr">label</span>=<span class="sg-hl-string">&quot;${value}&quot;</span>`;
+		});
+	}
 
 	function getCurrentLocationAndSave() {
 		isGettingLocation = true;
@@ -81,7 +160,6 @@
 				newLocationLat = '';
 				newLocationLng = '';
 				newLocationAddress = '';
-				showManualEntry = false;
 				isGettingLocation = false;
 			},
 			(error) => {
@@ -103,7 +181,6 @@
 				newLocationLat = '';
 				newLocationLng = '';
 				newLocationAddress = '';
-				showManualEntry = false;
 			} else {
 				locationError = result.error || 'Failed to add location';
 			}
@@ -145,6 +222,8 @@
 		if (open) {
 			loadBackups();
 			activeTab = 'locations';
+			showWipeConfirm = false;
+			wipeError = '';
 		}
 	});
 
@@ -178,7 +257,7 @@
 		try {
 			const result = await requestBackup();
 			if (result.ok) {
-				backupSuccess = result.message || 'Backup created successfully';
+				backupSuccess = result.message || 'Backup created';
 				await loadBackups();
 				setTimeout(() => {
 					backupSuccess = '';
@@ -190,6 +269,40 @@
 			backupError = 'Failed to create backup';
 		} finally {
 			isCreatingBackup = false;
+		}
+	}
+
+	function exportAllData() {
+		isExporting = true;
+		window.open('/api/export', '_blank');
+		setTimeout(() => { isExporting = false; }, 1000);
+	}
+
+	async function wipeAllData() {
+		if (isWiping) return;
+		isWiping = true;
+		wipeError = '';
+
+		try {
+			const response = await apiFetch('/api/wipe', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ confirm: 'DELETE_ALL_MY_DATA' })
+			});
+
+			if (response.ok) {
+				showWipeConfirm = false;
+				await onLocationsChanged();
+				await onTemplateChanged();
+				backups = [];
+			} else {
+				const payload = await response.json().catch(() => null);
+				wipeError = payload?.error || 'Failed to erase data';
+			}
+		} catch (err) {
+			wipeError = 'Failed to erase data';
+		} finally {
+			isWiping = false;
 		}
 	}
 
@@ -408,68 +521,28 @@
 			isSavingTemplate = false;
 		}
 	}
-
-	function setActiveTab(tab: 'locations' | 'database' | 'template') {
-		activeTab = tab;
-	}
 </script>
 
 {#if open}
 	<Modal open={open} title="Settings" onclose={onclose} className="settings-modal-extended">
-		<div class="settings-tabs">
-			<button
-				type="button"
-				class="settings-tab"
-				class:active={activeTab === 'locations'}
-				onclick={() => setActiveTab('locations')}
-			>
-				<Icon name="location" size={14} />
-				<span>Locations</span>
-			</button>
-			<button
-				type="button"
-				class="settings-tab"
-				class:active={activeTab === 'database'}
-				onclick={() => setActiveTab('database')}
-			>
-				<Icon name="download" size={14} />
-				<span>Database</span>
-			</button>
-			<button
-				type="button"
-				class="settings-tab"
-				class:active={activeTab === 'template'}
-				onclick={() => setActiveTab('template')}
-			>
-				<Icon name="settings" size={14} />
-				<span>Template</span>
-			</button>
-		</div>
+		<SegmentedControl
+			{segments}
+			selected={activeTab}
+			onselect={(v) => { activeTab = v as 'locations' | 'database' | 'template'; }}
+		/>
 
 		{#if activeTab === 'locations'}
 			<section class="settings-tab-panel">
-				<div class="settings-section-header">
-					<h3 class="settings-section-title">Locations</h3>
-					<p class="settings-section-subtitle">Saved places for quick tagging.</p>
-				</div>
-
-				<div class="settings-card">
+				<SettingsGroup header="Saved Locations">
 					{#if locations.length > 0}
-						<div class="location-list">
-							{#each locations as loc}
-								<div class="location-item">
-									<div class="location-info">
-										<span class="location-name">{loc.name}</span>
-										<span class="location-meta">
-											{#if loc.address}
-												{loc.address}
-											{:else}
-												{formatCoordinate(loc.lat)}, {formatCoordinate(loc.lng)}
-											{/if}
-										</span>
-									</div>
+						{#each locations as loc}
+							<SettingsRow
+								label={loc.name}
+								subtitle={loc.address || `${formatCoordinate(loc.lat)}, ${formatCoordinate(loc.lng)}`}
+							>
+								{#snippet action()}
 									<button
-										class="location-delete-btn"
+										class="sg-delete-btn"
 										onclick={() => deleteLocationPreset(loc.id)}
 										disabled={isDeletingLocation === loc.id}
 										aria-label="Delete {loc.name}"
@@ -480,28 +553,27 @@
 											<Icon name="trash" size={14} />
 										{/if}
 									</button>
-								</div>
-							{/each}
-						</div>
+								{/snippet}
+							</SettingsRow>
+						{/each}
 					{:else}
-						<p class="settings-empty">No saved locations yet.</p>
+						<div class="sg-empty">No saved locations yet.</div>
 					{/if}
-				</div>
+				</SettingsGroup>
 
-				<div class="settings-card">
-					<div class="add-location-row">
+				<SettingsGroup header="Add Location" footer="Enter a name, then use GPS or enter coordinates manually.">
+					<div class="sg-input-row">
 						<input
 							type="text"
-							class="add-location-input"
-							placeholder="New location name..."
+							class="sg-input"
+							placeholder="Location name..."
 							bind:value={newLocationName}
 						/>
 						<button
-							type="button"
-							class="add-location-gps-btn"
+							class="sg-gps-btn"
 							onclick={getCurrentLocationAndSave}
 							disabled={isGettingLocation || !newLocationName.trim()}
-							title="Save with current GPS location"
+							title="Save with current GPS"
 						>
 							{#if isGettingLocation}
 								<Spinner variant="text" size="small" />
@@ -512,121 +584,137 @@
 					</div>
 
 					{#if locationError}
-						<p class="location-error">{locationError}</p>
+						<p class="sg-error">{locationError}</p>
 					{/if}
 
-					<button
-						type="button"
-						class="manual-entry-toggle"
-						onclick={() => showManualEntry = !showManualEntry}
-					>
-						{showManualEntry ? '− Hide manual entry' : '+ Enter coordinates manually'}
-					</button>
-
-					{#if showManualEntry}
-						<div class="manual-entry-form">
-							<div class="manual-entry-row">
-								<input
-									type="text"
-									class="manual-input"
-									placeholder="Latitude"
-									bind:value={newLocationLat}
-								/>
-								<input
-									type="text"
-									class="manual-input"
-									placeholder="Longitude"
-									bind:value={newLocationLng}
-								/>
-							</div>
+					<ExpandableSection label="Enter Manually">
+						<div class="sg-manual-grid">
 							<input
 								type="text"
-								class="manual-input full"
+								class="sg-input"
+								placeholder="Latitude"
+								bind:value={newLocationLat}
+							/>
+							<input
+								type="text"
+								class="sg-input"
+								placeholder="Longitude"
+								bind:value={newLocationLng}
+							/>
+							<input
+								type="text"
+								class="sg-input full"
 								placeholder="Address (optional)"
 								bind:value={newLocationAddress}
 							/>
+						</div>
+						<div class="sg-action-row">
 							<button
-								type="button"
-								class="manual-save-btn"
+								class="sg-btn sg-btn-primary"
 								onclick={addLocationPreset}
 								disabled={isAddingLocation || !newLocationName.trim() || !newLocationLat || !newLocationLng}
 							>
-								{isAddingLocation ? 'Saving...' : 'Save'}
+								{isAddingLocation ? 'Saving...' : 'Save Location'}
 							</button>
 						</div>
-					{/if}
-				</div>
+					</ExpandableSection>
+				</SettingsGroup>
 			</section>
+
 		{:else if activeTab === 'database'}
 			<section class="settings-tab-panel">
-				<div class="settings-section-header">
-					<h3 class="settings-section-title">Database Backup</h3>
-					<p class="settings-section-subtitle">Keep local snapshots of your journal.</p>
-				</div>
-
-				<div class="settings-card backup-section">
-					<p class="backup-description">
-						Create a backup of your journal database. Backups are stored locally in the backups folder.
-					</p>
-					<div class="backup-actions">
-						<button
-							type="button"
-							class="backup-btn"
-							onclick={createBackup}
-							disabled={isCreatingBackup}
-						>
+				<SettingsGroup header="Backup" footer="Backups are stored locally in the backups folder.">
+					<SettingsRow
+						label="Create Backup"
+						subtitle={isCreatingBackup ? 'Creating...' : 'Snapshot your journal database'}
+						onclick={createBackup}
+						disabled={isCreatingBackup}
+					>
+						{#snippet action()}
 							{#if isCreatingBackup}
 								<Spinner variant="text" size="small" />
-								<span>Creating backup...</span>
 							{:else}
 								<Icon name="download" size={16} />
-								<span>Create Backup</span>
 							{/if}
-						</button>
-					</div>
-					{#if backupError}
-						<p class="location-error">{backupError}</p>
-					{/if}
-					{#if backupSuccess}
-						<p class="backup-success">{backupSuccess}</p>
-					{/if}
+						{/snippet}
+					</SettingsRow>
+				</SettingsGroup>
 
-					{#if isLoadingBackups}
-						<div class="backup-loading">
-							<Spinner variant="text" size="small" />
-						</div>
-					{:else if backups.length > 0}
-						<div class="backup-list">
-							{#each backups as backup}
-								<div class="backup-item">
-									<div class="backup-item-info">
-										<span class="backup-item-date">{formatBackupDate(backup.created)}</span>
-										<span class="backup-item-size">{formatFileSize(backup.size)}</span>
-									</div>
+				{#if backupError}
+					<p class="sg-error">{backupError}</p>
+				{/if}
+				{#if backupSuccess}
+					<p class="sg-success">{backupSuccess}</p>
+				{/if}
+
+				{#if backups.length > 0}
+					<SettingsGroup header="Backup History">
+						{#each backups as backup}
+							<SettingsRow
+								label={formatBackupDate(backup.created)}
+								subtitle={formatFileSize(backup.size)}
+							>
+								{#snippet action()}
 									<button
-										type="button"
-										class="backup-download-btn"
+										class="sg-download-btn"
 										onclick={() => downloadBackup(backup.filename)}
 										title="Download {backup.filename}"
 									>
 										<Icon name="download" size={14} />
 									</button>
-								</div>
-							{/each}
+								{/snippet}
+							</SettingsRow>
+						{/each}
+					</SettingsGroup>
+				{:else if isLoadingBackups}
+					<SettingsGroup header="Backup History">
+						<div class="sg-empty"><Spinner variant="text" size="small" /></div>
+					</SettingsGroup>
+				{/if}
+
+				<SettingsGroup header="Data">
+					<SettingsRow
+						label="Export All Data"
+						subtitle="Download entries, locations, and templates as JSON"
+						accent={true}
+						onclick={exportAllData}
+						disabled={isExporting}
+					/>
+					<SettingsRow
+						label="Erase All Data"
+						subtitle="Permanently delete all entries and settings"
+						destructive={true}
+						onclick={() => { showWipeConfirm = !showWipeConfirm; }}
+					/>
+					{#if showWipeConfirm}
+						<div class="sg-confirm-row">
+							<span class="sg-confirm-text">This cannot be undone. Are you sure?</span>
+							<button
+								class="sg-btn sg-btn-secondary"
+								onclick={() => { showWipeConfirm = false; }}
+							>
+								Cancel
+							</button>
+							<button
+								class="sg-btn sg-btn-destructive"
+								onclick={wipeAllData}
+								disabled={isWiping}
+							>
+								{isWiping ? 'Erasing...' : 'Erase'}
+							</button>
 						</div>
 					{/if}
-				</div>
+					{#if wipeError}
+						<p class="sg-error">{wipeError}</p>
+					{/if}
+				</SettingsGroup>
 			</section>
+
 		{:else}
 			<section class="settings-tab-panel">
-				<div class="settings-section-header">
-					<h3 class="settings-section-title">Template</h3>
-					<p class="settings-section-subtitle">Edit prompts for future entries.</p>
-				</div>
-
-				<div class="settings-card">
-					<div class="preset-row">
-						<div class="preset-dropdown">
+				<SettingsGroup header="Presets">
+					<div class="sg-preset-row">
+						<div class="preset-dropdown-wrap">
 							<Dropdown
 								items={templatePresets.map(preset => ({ label: preset.name, value: preset.id.toString() }))}
 								placeholder="Select preset"
@@ -636,131 +724,146 @@
 							/>
 						</div>
 						<button
-							type="button"
-							class="backup-btn"
+							class="sg-btn sg-btn-primary"
 							onclick={applyPreset}
 							disabled={selectedPresetId === null || isSavingTemplate || isLoadingTemplate}
 						>
 							Apply
 						</button>
 					</div>
-					<div class="preset-actions-row">
-						<input
-							type="text"
-							class="preset-name-input"
-							placeholder="Preset name"
-							bind:value={presetName}
-						/>
-						<button
-							type="button"
-							class="backup-btn backup-btn-secondary"
-							onclick={savePreset}
-							disabled={isSavingTemplate || isLoadingTemplate || templatePresets.length >= PRESET_LIMIT}
-						>
-							Save Preset
-						</button>
-					</div>
+				</SettingsGroup>
 
-					{#if presetError}
-						<p class="location-error">{presetError}</p>
-					{/if}
-					{#if presetSuccess}
-						<p class="backup-success">{presetSuccess}</p>
-					{/if}
+				<SettingsGroup header="Manage Presets">
+					<ExpandableSection label="Save & Edit Presets">
+						<div class="sg-input-row" style="padding: 0 0 8px;">
+							<input
+								type="text"
+								class="sg-input"
+								placeholder="New preset name"
+								bind:value={presetName}
+							/>
+							<button
+								class="sg-btn sg-btn-secondary"
+								onclick={savePreset}
+								disabled={isSavingTemplate || isLoadingTemplate || templatePresets.length >= PRESET_LIMIT}
+							>
+								Save New
+							</button>
+						</div>
 
-					{#if templatePresets.length > 0}
-						<div class="preset-list">
+						{#if presetError}
+							<p class="sg-error" style="padding: 0 0 8px;">{presetError}</p>
+						{/if}
+						{#if presetSuccess}
+							<p class="sg-success" style="padding: 0 0 8px;">{presetSuccess}</p>
+						{/if}
+
+						{#if templatePresets.length > 0}
 							{#each templatePresets as preset}
-								<div class="preset-item">
+								<div class="sg-preset-item">
 									{#if renamingPresetId === preset.id}
 										<input
 											type="text"
-											class="preset-rename-input"
+											class="sg-input"
+											style="flex:1"
 											bind:value={renamingPresetName}
 										/>
-									{:else}
-										<span class="preset-name">{preset.name}</span>
-									{/if}
-									<div class="preset-item-actions">
-										{#if renamingPresetId === preset.id}
-											<button
-												type="button"
-												class="backup-btn backup-btn-secondary"
-												onclick={cancelRenamePreset}
-											>
+										<div class="sg-preset-actions">
+											<button class="sg-btn sg-btn-secondary" onclick={cancelRenamePreset}>
 												Cancel
 											</button>
-											<button
-												type="button"
-												class="backup-btn"
-												onclick={submitRenamePreset}
-												disabled={isSavingTemplate}
-											>
+											<button class="sg-btn sg-btn-primary" onclick={submitRenamePreset} disabled={isSavingTemplate}>
 												Save
 											</button>
-										{:else}
-											<button
-												type="button"
-												class="backup-btn backup-btn-secondary"
-												onclick={() => startRenamePreset(preset.id, preset.name)}
-											>
+										</div>
+									{:else}
+										<span class="sg-preset-name">{preset.name}</span>
+										<div class="sg-preset-actions">
+											<button class="sg-btn sg-btn-secondary" onclick={() => startRenamePreset(preset.id, preset.name)}>
 												Rename
 											</button>
-											<button
-												type="button"
-												class="backup-btn"
-												onclick={() => deletePreset(preset.id)}
-												disabled={isSavingTemplate}
-											>
+											<button class="sg-btn sg-btn-secondary" onclick={() => deletePreset(preset.id)} disabled={isSavingTemplate}>
 												Delete
 											</button>
-										{/if}
-									</div>
+										</div>
+									{/if}
 								</div>
 							{/each}
+						{/if}
+					</ExpandableSection>
+				</SettingsGroup>
+
+				<SettingsGroup header="Template Editor">
+					<div class="sg-info-row">
+						<span class="sg-info-label">Syntax</span>
+						<div class="sg-info-wrap">
+							<button class="sg-info-icon" type="button" aria-label="Syntax help">
+								<Icon name="info" size={14} />
+							</button>
+							<div class="sg-info-tooltip" role="tooltip">
+								<div class="sg-syntax-help">
+									<div class="sg-syntax-row">
+										<span class="sg-syntax-tag">&lt;hp&gt;...&lt;/hp&gt;</span>
+										<span class="sg-syntax-label">Section</span>
+									</div>
+									<div class="sg-syntax-row sg-syntax-row-nested">
+										<span class="sg-syntax-tag">&lt;mp&gt;...&lt;/mp&gt;</span>
+										<span class="sg-syntax-label">Question</span>
+										<span class="sg-syntax-note">Always nested</span>
+									</div>
+									<div class="sg-syntax-row">
+										<span class="sg-syntax-tag">label="..."</span>
+										<span class="sg-syntax-label">Placeholder</span>
+									</div>
+								</div>
+							</div>
 						</div>
-					{/if}
+					</div>
 
-					<div class="template-editor">
-						<p class="template-editor-description">
-							Wrap sub-questions inside <code>&lt;hp&gt;...&lt;/hp&gt;</code>.
-							Optional placeholders use <code>label=\"...\"</code>.
-						</p>
-						<pre class="template-editor-example">{TEMPLATE_EXAMPLE}</pre>
-
+					<div class="es-content" style="padding-top: 8px;">
 						{#if templateLoadError}
-							<p class="location-error">{templateLoadError}</p>
+							<p class="sg-error" style="padding: 0 0 8px;">{templateLoadError}</p>
 						{/if}
 						{#if templateValidationErrors.length > 0}
-							<div class="template-error-list">
-								{#each templateValidationErrors as err}
-									<p class="location-error">{err}</p>
-								{/each}
-							</div>
+							{#each templateValidationErrors as err}
+								<p class="sg-error" style="padding: 0 0 4px;">{err}</p>
+							{/each}
 						{/if}
 						{#if templateSuccess}
-							<p class="backup-success">{templateSuccess}</p>
+							<p class="sg-success" style="padding: 0 0 8px;">{templateSuccess}</p>
 						{/if}
 
-						<textarea
-							class="template-editor-textarea"
-							rows="16"
-							bind:value={templateDraft}
-							disabled={isLoadingTemplate || isSavingTemplate}
-						></textarea>
+						<div class="sg-ide">
+							<div class="sg-ide-gutter">
+								<div class="sg-ide-lines" bind:this={templateLineRef}>
+									{#each templateLineNumbers as lineNumber}
+										<span>{lineNumber}</span>
+									{/each}
+								</div>
+							</div>
+							<div class="sg-ide-editor">
+								<pre class="sg-ide-highlight" bind:this={templateHighlightRef} aria-hidden="true">{@html highlightedTemplate}</pre>
+								<textarea
+									class="sg-ide-textarea"
+									rows="12"
+									bind:this={templateEditorRef}
+									bind:value={templateDraft}
+									onscroll={syncTemplateScroll}
+									disabled={isLoadingTemplate || isSavingTemplate}
+								></textarea>
+							</div>
+						</div>
 
-						<div class="template-actions">
+						<div class="sg-action-row">
 							<button
-								type="button"
-								class="backup-btn backup-btn-secondary"
+								class="sg-btn sg-btn-secondary"
 								onclick={loadTemplateSource}
 								disabled={isLoadingTemplate || isSavingTemplate}
 							>
 								Reload
 							</button>
 							<button
-								type="button"
-								class="backup-btn"
+								class="sg-btn sg-btn-primary"
 								onclick={saveTemplate}
 								disabled={isSavingTemplate || isLoadingTemplate}
 							>
@@ -773,7 +876,7 @@
 							</button>
 						</div>
 					</div>
-				</div>
+				</SettingsGroup>
 			</section>
 		{/if}
 	</Modal>

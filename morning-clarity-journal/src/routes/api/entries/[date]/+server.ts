@@ -1,13 +1,32 @@
-import { json, error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getEntryByDate, getTemplateById } from '$lib/db.js';
 import { decrypt } from '$lib/server/crypto.js';
+import { noStoreHeaders } from '$lib/api-helpers.js';
+
+function isValidDateFormat(dateStr: string): boolean {
+	// Must match YYYY-MM-DD format
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+		return false;
+	}
+
+	// Must be a valid date
+	const [year, month, day] = dateStr.split('-').map(Number);
+	const date = new Date(year, month - 1, day);
+	return date.getFullYear() === year &&
+		date.getMonth() === month - 1 &&
+		date.getDate() === day;
+}
 
 export const GET: RequestHandler = async ({ params }) => {
+	if (!isValidDateFormat(params.date)) {
+		return new Response('Invalid date format', { status: 400, headers: noStoreHeaders() });
+	}
+
 	const entry = getEntryByDate(params.date);
 
 	if (!entry) {
-		throw error(404, 'Entry not found');
+		return new Response('Entry not found', { status: 404, headers: noStoreHeaders() });
 	}
 
 	const encryptedStr = entry.rawData.toString('utf8');
@@ -16,7 +35,7 @@ export const GET: RequestHandler = async ({ params }) => {
 	const template = templateId ? getTemplateById(templateId) : null;
 
 	if (!template) {
-		throw error(500, 'Failed to load template');
+		return new Response('Failed to load template', { status: 500, headers: noStoreHeaders() });
 	}
 
 	return json({
@@ -30,5 +49,5 @@ export const GET: RequestHandler = async ({ params }) => {
 		created_at: entry.created_at,
 		data,
 		template: template.parsed
-	});
+	}, { headers: noStoreHeaders() });
 };

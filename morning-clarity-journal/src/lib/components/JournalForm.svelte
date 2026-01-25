@@ -77,7 +77,7 @@
 	}
 
 	function handleInput(event: Event, fieldId: string) {
-		const target = event.target as HTMLElement;
+		const target = event.currentTarget as HTMLElement;
 		formData[fieldId] = target.textContent || '';
 	}
 
@@ -110,6 +110,20 @@
 			expandedSections = newSet;
 			await tick();
 		}
+	}
+
+	function syncContent(node: HTMLElement, value: string | undefined) {
+		const update = (nextValue: string | undefined) => {
+			if (document.activeElement === node) return;
+			const content = nextValue ?? '';
+			if ((node.textContent || '') !== content) {
+				node.textContent = content;
+			}
+		};
+
+		update(value);
+
+		return { update };
 	}
 </script>
 
@@ -194,7 +208,10 @@
 								</div>
 
 								{#if field.label}
-									<div class="field-label">{field.label}</div>
+									<div
+										class="field-label"
+										class:mp-label={field.type === 'mp' || (!field.type && field.label)}
+									>{field.label}</div>
 								{/if}
 
 								<div
@@ -204,10 +221,11 @@
 									aria-label={field.label || question.question}
 									data-field-id={field.id}
 									data-placeholder={field.placeholder || undefined}
+									use:syncContent={formData[field.id]}
 									oninput={(e) => handleInput(e, field.id)}
 									onpaste={handlePaste}
 									onfocus={() => handleFieldFocus(question.id)}
-								>{formData[field.id]}</div>
+								></div>
 							</div>
 						{/each}
 					</div>

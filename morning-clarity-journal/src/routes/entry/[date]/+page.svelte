@@ -167,7 +167,10 @@
 												{#if value}
 													<div class="field-block">
 														{#if field.label}
-															<div class="field-label">{field.label}</div>
+															<div
+																class="field-label"
+																class:mp-label={field.type === 'mp' || (!field.type && field.label)}
+															>{field.label}</div>
 														{/if}
 														<div class="field-value">{value}</div>
 													</div>

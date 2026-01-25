@@ -1,20 +1,31 @@
 import { json } from '@sveltejs/kit';
 
-export async function parseJsonBody<T>(request: Request): Promise<{ data?: T; error?: string }> {
+export async function parseJsonBody<T>(request: Request, maxBytes?: number): Promise<{ data?: T; error?: string }> {
 	try {
-		const data = await request.json() as T;
+		const text = await request.text();
+		if (maxBytes && text.length > maxBytes) {
+			return { error: 'Payload too large' };
+		}
+		const data = JSON.parse(text) as T;
 		return { data };
 	} catch {
 		return { error: 'Invalid JSON payload' };
 	}
 }
 
-export function successResponse(data: Record<string, unknown> = {}) {
-	return json({ success: true, ...data });
+export function noStoreHeaders(): HeadersInit {
+	return {
+		'Cache-Control': 'no-store, private',
+		'Pragma': 'no-cache'
+	};
 }
 
-export function errorResponse(message: string, status: number = 400) {
-	return json({ success: false, error: message }, { status });
+export function successResponse(data: Record<string, unknown> = {}, headers?: HeadersInit) {
+	return json({ success: true, ...data }, { headers });
+}
+
+export function errorResponse(message: string, status: number = 400, headers?: HeadersInit) {
+	return json({ success: false, error: message }, { status, headers });
 }
 
 export function notFoundResponse(message: string = 'Not found') {

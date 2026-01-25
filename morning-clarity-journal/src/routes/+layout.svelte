@@ -18,7 +18,6 @@
 		if (saved) {
 			isDark = saved === 'dark';
 		}
-		updateTheme();
 		mounted = true;
 	});
 	
@@ -29,7 +28,6 @@
 	function toggleTheme() {
 		isDark = !isDark;
 		localStorage.setItem('theme', isDark ? 'dark' : 'light');
-		updateTheme();
 	}
 	
 	$effect(() => {
@@ -54,11 +52,11 @@
 {:else}
 	<!-- Main app with subtle theme toggle -->
 	<div class="min-h-screen relative">
-		<!-- Theme toggle - unobtrusive, bottom right -->
+		<!-- Theme toggle - unobtrusive, bottom left -->
 		{#if mounted}
 			<button
 				onclick={toggleTheme}
-				class="fixed bottom-[var(--space-lg)] right-[var(--space-lg)] z-50 w-8 h-8 flex items-center justify-center rounded-full text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface)] transition-all opacity-50 hover:opacity-100"
+				class="theme-btn"
 				title={isDark ? 'Light mode' : 'Dark mode'}
 				aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
 			>
