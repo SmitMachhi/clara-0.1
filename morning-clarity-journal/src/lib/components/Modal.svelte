@@ -136,6 +136,19 @@
 		overflow-y: auto;
 	}
 
+	@media (max-width: 600px) {
+		.modal-overlay {
+			padding: 0;
+		}
+
+		.modal {
+			max-width: 100%;
+			height: 100dvh;
+			max-height: 100dvh;
+			border-radius: 0;
+		}
+	}
+
 	@keyframes fadeIn {
 		from { opacity: 0; }
 		to { opacity: 1; }

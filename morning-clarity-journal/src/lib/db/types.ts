@@ -42,6 +42,8 @@ export interface Entry {
 	location_name?: string;
 	captured_lat: number | null;
 	captured_lng: number | null;
+	quote_id?: number | null;
+	quote_text?: string | null;
 	template_id: number | null;
 	created_at: string;
 }
@@ -53,6 +55,19 @@ export interface EntryWithData extends Entry {
 export interface TemplatePresetSummary {
 	id: number;
 	name: string;
+	created_at: string;
+}
+
+export interface Quote {
+	id: number;
+	text: string;
+	created_at: string;
+}
+
+export interface DailyQuote {
+	date: string;
+	quote_id: number | null;
+	text: string;
 	created_at: string;
 }
 

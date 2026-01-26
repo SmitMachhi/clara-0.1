@@ -1,5 +1,11 @@
 import type { RequestHandler } from './$types';
-import { getActiveTemplate, saveEntry, getEntryDates, getRecentEntrySummaries } from '$lib/db.js';
+import {
+	getActiveTemplate,
+	saveEntry,
+	getEntryDates,
+	getRecentEntrySummaries,
+	getOrCreateDailyQuote
+} from '$lib/db.js';
 import { DISPLAY } from '$lib/constants.js';
 import { formatDateISO, formatDateTime, isPastCutoff } from '$lib/utils.js';
 import { validateCoordinates } from '$lib/validation.js';
@@ -56,8 +62,19 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (!template) {
 			return errorResponse('Failed to load template', 500, noStoreHeaders());
 		}
+		const dailyQuote = getOrCreateDailyQuote(date);
 		const encryptedData = encrypt(JSON.stringify(data));
-		const id = saveEntry(date, timestamp, locationId, encryptedData, template.id, capturedLat, capturedLng);
+		const id = saveEntry(
+			date,
+			timestamp,
+			locationId,
+			encryptedData,
+			template.id,
+			dailyQuote?.quote_id ?? null,
+			dailyQuote?.text ?? null,
+			capturedLat,
+			capturedLng
+		);
 		return successResponse({ id, date }, noStoreHeaders());
 	} catch (error) {
 		return errorResponse('Entry for today already exists', 400, noStoreHeaders());

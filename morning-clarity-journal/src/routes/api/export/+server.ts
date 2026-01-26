@@ -5,7 +5,9 @@ import {
 	getLocations,
 	getActiveTemplate,
 	getTemplatePresets,
-	getTemplatePresetById
+	getTemplatePresetById,
+	getQuotes,
+	getDailyQuotes
 } from '$lib/db.js';
 import { decrypt } from '$lib/server/crypto.js';
 import { noStoreHeaders } from '$lib/api-helpers.js';
@@ -35,6 +37,7 @@ export const GET: RequestHandler = async () => {
 			location_name: entry.location_name ?? null,
 			captured_lat: entry.captured_lat,
 			captured_lng: entry.captured_lng,
+			quote_text: full?.quote_text ?? null,
 			data
 		};
 	});
@@ -59,6 +62,16 @@ export const GET: RequestHandler = async () => {
 			lat: location.lat,
 			lng: location.lng,
 			address: location.address
+		})),
+		quotes: getQuotes().map(quote => ({
+			id: quote.id,
+			text: quote.text,
+			created_at: quote.created_at
+		})),
+		dailyQuotes: getDailyQuotes().map(quote => ({
+			date: quote.date,
+			text: quote.text,
+			created_at: quote.created_at
 		})),
 		activeTemplate: activeTemplate ? {
 			sourceText: activeTemplate.sourceText

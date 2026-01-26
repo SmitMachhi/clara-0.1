@@ -12,6 +12,7 @@
 	import Icon from '$lib/components/Icons.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Dropdown from '$lib/components/Dropdown.svelte';
+	import QuoteBlock from '$lib/components/QuoteBlock.svelte';
 	interface DateParts {
 		time: string;
 		dayOfWeekShort: string;
@@ -31,6 +32,7 @@
 		dateParts,
 		currentYear,
 		template,
+		dailyQuote,
 		isComplete,
 		completedFields,
 		totalFields,
@@ -52,6 +54,7 @@
 		dateParts: DateParts;
 		currentYear: number;
 		template: TemplateModel;
+		dailyQuote: string | null;
 		isComplete: boolean;
 		completedFields: number;
 		totalFields: number;
@@ -93,33 +96,38 @@
 			<span class="meta-year">{currentYear}</span>
 		</div>
 		<div class="page-actions">
-			{#if capturedLat !== null && capturedLng !== null}
-				<div class="captured-location">
-					<span class="captured-label">
-						📍 {formatCoordinate(capturedLat)}, {formatCoordinate(capturedLng)}
-					</span>
-					<button class="captured-clear" onclick={onClearLocation}
-						aria-label="Clear location">×</button>
-				</div>
-			{:else}
-				<Dropdown
-					items={locations.map(loc => ({ label: loc.name, value: loc.id.toString() }))}
-					placeholder="Add location"
-					selectedValue={selectedLocationId?.toString() || null}
-					onSelect={(value) => onSelectLocation(parseInt(value))}
-					onClear={onClearSelectedLocation}
-				/>
-			{/if}
-			<button class="gps-capture-btn" onclick={onCaptureLocation} disabled={isCapturingGps}
-				title={gpsError || 'Capture current location'} aria-label="Capture current location">
-				{#if isCapturingGps}
-					<Spinner variant="gps" size="small" />
+			<div class="page-actions-group">
+				{#if capturedLat !== null && capturedLng !== null}
+					<div class="captured-location">
+						<span class="captured-label">
+							📍 {formatCoordinate(capturedLat)}, {formatCoordinate(capturedLng)}
+						</span>
+						<button class="captured-clear" onclick={onClearLocation}
+							aria-label="Clear location">×</button>
+					</div>
 				{:else}
-					📍
+					<Dropdown
+						items={locations.map(loc => ({ label: loc.name, value: loc.id.toString() }))}
+						placeholder="Add location"
+						selectedValue={selectedLocationId?.toString() || null}
+						onSelect={(value) => onSelectLocation(parseInt(value))}
+						onClear={onClearSelectedLocation}
+					/>
 				{/if}
-			</button>
+				<button class="gps-capture-btn" onclick={onCaptureLocation} disabled={isCapturingGps}
+					title={gpsError || 'Capture current location'} aria-label="Capture current location">
+					{#if isCapturingGps}
+						<Spinner variant="gps" size="small" />
+					{:else}
+						📍
+					{/if}
+				</button>
+			</div>
 		</div>
 	</div>
+	{#if dailyQuote}
+		<QuoteBlock text={dailyQuote} />
+	{/if}
 	<div class="page-content">
 		{#each template.questions as question}
 			<div class="block" role="listitem">

@@ -6,7 +6,6 @@
 	import { goto } from '$app/navigation';
 	import { apiFetch, setSessionFlag } from '$lib/api-client.js';
 	import ExistingSessionWarning from '$lib/components/ExistingSessionWarning.svelte';
-	import Icon from '$lib/components/Icons.svelte';
 	import { getOptionalLocation } from '$lib/session-helpers.js';
 	import type { ExistingSessionInfo } from '$lib/session-helpers.js';
 	import { onMount } from 'svelte';
@@ -14,7 +13,6 @@
 	let passphrase = $state('');
 	let error = $state('');
 	let isShaking = $state(false);
-	let showPassphrase = $state(false);
 	let isSubmitting = $state(false);
 	let existingSessionInfo = $state<ExistingSessionInfo | null>(null);
 	let storedPassphrase = $state('');
@@ -112,10 +110,6 @@
 
 <div class="min-h-screen flex items-center justify-center bg-[var(--bg)] p-[var(--space-lg)]">
 	<div class="w-full max-w-[320px] animate-fade-in">
-		<h1 class="text-center text-xl text-[var(--text)] mb-[var(--space-2xl)] font-serif">
-			clara
-		</h1>
-
 		{#if existingSessionInfo}
 			<ExistingSessionWarning
 				device={existingSessionInfo.device}
@@ -128,20 +122,11 @@
 			<div class={isShaking ? 'shake' : ''}>
 				<div class="passphrase-wrapper">
 					<input
-						type={showPassphrase ? 'text' : 'password'}
+						type="password"
 						bind:value={passphrase}
-						placeholder="Passphrase"
-						class="w-full text-center"
+						class="w-full text-center login-input"
 						onkeydown={handleKeypress}
 					/>
-					<button
-						type="button"
-						class="toggle-visibility"
-						onclick={() => showPassphrase = !showPassphrase}
-						aria-label={showPassphrase ? 'Hide passphrase' : 'Show passphrase'}
-					>
-						<Icon name={showPassphrase ? 'eye-off' : 'eye'} size={16} />
-					</button>
 				</div>
 			</div>
 
@@ -151,21 +136,10 @@
 				</p>
 			{/if}
 
-			<button
-				type="button"
-				disabled={!passphrase || isSubmitting}
-				onclick={handleSubmit}
-				class="w-full mt-[var(--space-lg)] py-[var(--space-md)] bg-[var(--surface-elevated)]
-					text-[var(--text)] rounded-[var(--radius-md)] transition-colors
-					hover:bg-[var(--border)] disabled:opacity-40 disabled:cursor-not-allowed"
-			>
-				{isSubmitting ? 'Unlocking...' : 'Unlock'}
-			</button>
 		{/if}
-
-		<p class="text-xs text-[var(--text-muted)] text-center mt-[var(--space-lg)]">
-			All data is encrypted at rest.
-		</p>
+	</div>
+	<div class="brand-mark">
+		<span>clara 0.1</span>
 	</div>
 </div>
 
@@ -174,24 +148,44 @@
 		position: relative;
 	}
 	.passphrase-wrapper input {
-		padding-right: 2.5rem;
+		padding-right: 0;
 	}
-	.toggle-visibility {
-		position: absolute;
-		right: 0.5rem;
-		top: 50%;
-		transform: translateY(-50%);
-		background: none;
+	.login-input {
+		background: transparent;
 		border: none;
-		color: var(--text-muted);
-		cursor: pointer;
-		padding: 0.25rem;
-		display: flex;
-		align-items: center;
-		opacity: 0.6;
-		transition: opacity 0.15s;
+		border-radius: 0;
+		padding: 0.65rem 0.5rem;
+		color: var(--text);
+		font-size: 1.05rem;
+		letter-spacing: var(--tracking-tight);
+		transition: color 0.15s ease;
 	}
-	.toggle-visibility:hover {
-		opacity: 1;
+	.login-input::placeholder {
+		color: var(--text-tertiary);
+	}
+	.login-input:focus {
+		outline: none;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.login-input {
+			transition: none;
+		}
+	}
+	.brand-mark {
+		position: fixed;
+		right: calc(var(--space-lg) + var(--safe-right));
+		bottom: calc(var(--space-lg) + var(--safe-bottom));
+		color: var(--accent);
+		font-size: 1.15rem;
+		letter-spacing: 0.02em;
+		font-weight: 600;
+	}
+
+	@media (max-width: 480px) {
+		.brand-mark {
+			right: calc(var(--space-md) + var(--safe-right));
+			bottom: calc(var(--space-md) + var(--safe-bottom));
+			font-size: 1rem;
+		}
 	}
 </style>

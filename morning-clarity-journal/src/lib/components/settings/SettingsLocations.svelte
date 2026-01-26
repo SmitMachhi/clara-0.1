@@ -125,7 +125,6 @@
 
 	<SettingsGroup
 		header="Add Location"
-		footer="Enter a name, then use GPS or enter coordinates manually."
 	>
 		<div class="sg-input-row">
 			<input

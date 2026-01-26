@@ -191,4 +191,20 @@
 		text-align: center;
 		line-height: 1.5;
 	}
+
+	@media (max-width: 600px) {
+		.dropdown-trigger {
+			width: 100%;
+			justify-content: space-between;
+		}
+
+		.dropdown-menu {
+			left: 0;
+			right: 0;
+			width: 100%;
+			max-width: none;
+			max-height: 60vh;
+			overflow-y: auto;
+		}
+	}
 </style>

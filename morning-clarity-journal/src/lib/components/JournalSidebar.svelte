@@ -54,6 +54,10 @@
 	<Icon name="menu" size={18} />
 </button>
 
+{#if sidebarOpen}
+	<div class="sidebar-overlay" onclick={onCloseSidebar} aria-hidden="true"></div>
+{/if}
+
 <aside class="sidebar" class:open={sidebarOpen} onmouseleave={() => { if (!settingsOpen) onCloseSidebar(); }}>
 	<div class="sidebar-inner">
 		<div class="sidebar-header">

@@ -9,27 +9,31 @@
 	import SettingsLocations from '$lib/components/settings/SettingsLocations.svelte';
 	import SettingsDatabase from '$lib/components/settings/SettingsDatabase.svelte';
 	import SettingsTemplate from '$lib/components/settings/SettingsTemplate.svelte';
+	import SettingsQuotes from '$lib/components/settings/SettingsQuotes.svelte';
 
 	let {
 		open,
 		locations,
 		onclose,
 		onLocationsChanged,
-		onTemplateChanged
+		onTemplateChanged,
+		onQuotesChanged
 	}: {
 		open: boolean;
 		locations: Location[];
 		onclose: () => void;
 		onLocationsChanged: () => Promise<void | boolean>;
 		onTemplateChanged: () => Promise<void | boolean>;
+		onQuotesChanged: () => Promise<void | boolean>;
 	} = $props();
 
-	let activeTab = $state<'locations' | 'database' | 'template'>('locations');
+	let activeTab = $state<'locations' | 'database' | 'template' | 'quotes'>('locations');
 
 	const segments = [
 		{ value: 'locations', label: 'Locations' },
 		{ value: 'database', label: 'Database' },
-		{ value: 'template', label: 'Template' }
+		{ value: 'template', label: 'Template' },
+		{ value: 'quotes', label: 'Quotes' }
 	];
 
 	$effect(() => {
@@ -51,8 +55,10 @@
 			<SettingsLocations {locations} {onLocationsChanged} />
 		{:else if activeTab === 'database'}
 			<SettingsDatabase {onLocationsChanged} {onTemplateChanged} />
-		{:else}
+		{:else if activeTab === 'template'}
 			<SettingsTemplate {onTemplateChanged} />
+		{:else}
+			<SettingsQuotes {onQuotesChanged} />
 		{/if}
 	</Modal>
 {/if}

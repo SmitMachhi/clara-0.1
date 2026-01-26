@@ -36,6 +36,20 @@ export function validateJournalData(data: unknown): { valid: boolean; error?: st
 	return { valid: true };
 }
 
+export function validateQuoteText(text: unknown): { valid: boolean; error?: string } {
+	if (!text || typeof text !== 'string') {
+		return { valid: false, error: 'Quote text is required' };
+	}
+	const trimmed = text.trim();
+	if (trimmed.length < VALIDATION.QUOTE_TEXT_MIN) {
+		return { valid: false, error: 'Quote text is required' };
+	}
+	if (trimmed.length > VALIDATION.QUOTE_TEXT_MAX) {
+		return { valid: false, error: `Quote too long (max ${VALIDATION.QUOTE_TEXT_MAX} characters)` };
+	}
+	return { valid: true };
+}
+
 export interface PassphraseValidationResult {
 	valid: boolean;
 	errors: string[];

@@ -12,8 +12,9 @@ try {
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
+	const isProd = process.env.NODE_ENV === 'production';
 	const forwardedProto = event.request.headers.get('x-forwarded-proto');
-	if (process.env.NODE_ENV === 'production' && forwardedProto && forwardedProto !== 'https') {
+	if (isProd && forwardedProto && forwardedProto !== 'https') {
 		const httpsUrl = new URL(event.url);
 		httpsUrl.protocol = 'https:';
 		return Response.redirect(httpsUrl.toString(), 308);
@@ -107,16 +108,29 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	const response = await resolve(event);
+	const cspDirectives = {
+		'default-src': ['self'],
+		'script-src': ['self'],
+		'style-src': ['self', 'unsafe-inline', 'https://fonts.googleapis.com'],
+		'img-src': ['self', 'data:'],
+		'font-src': ['self', 'https://fonts.gstatic.com'],
+		'connect-src': isProd ? ['self'] : ['self', 'ws:', 'wss:'],
+		'frame-ancestors': ['none']
+	} as const;
+
+	const response = await resolve(event, {
+		csp: {
+			mode: 'nonce',
+			directives: cspDirectives
+		}
+	} as Parameters<typeof resolve>[1]);
 	response.headers.set('X-Content-Type-Options', 'nosniff');
 	response.headers.set('X-Frame-Options', 'DENY');
 	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 	response.headers.set('Permissions-Policy', 'geolocation=(self), camera=(), microphone=()');
-	// CSP in all environments
-	response.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'");
 
 	// HSTS only in production (requires HTTPS)
-	if (process.env.NODE_ENV === 'production') {
+	if (isProd) {
 		response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 	}
 	if (event.url.pathname.startsWith('/_app/')) {

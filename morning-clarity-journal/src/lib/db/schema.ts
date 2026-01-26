@@ -14,8 +14,21 @@ export function initializeSchema(db: Database.Database): void {
 			captured_lng REAL,
 			captured_lat_encrypted BLOB,
 			captured_lng_encrypted BLOB,
+			quote_id_encrypted BLOB,
+			quote_text_encrypted BLOB,
 			template_id INTEGER,
 			encrypted_data BLOB NOT NULL,
+			created_at TEXT DEFAULT (datetime('now'))
+		);
+		CREATE TABLE IF NOT EXISTS quotes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			text_encrypted BLOB NOT NULL,
+			created_at TEXT DEFAULT (datetime('now'))
+		);
+		CREATE TABLE IF NOT EXISTS daily_quotes (
+			date TEXT PRIMARY KEY,
+			quote_id_encrypted BLOB,
+			quote_text_encrypted BLOB NOT NULL,
 			created_at TEXT DEFAULT (datetime('now'))
 		);
 		CREATE TABLE IF NOT EXISTS templates (

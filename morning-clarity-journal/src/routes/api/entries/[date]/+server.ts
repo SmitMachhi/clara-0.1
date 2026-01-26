@@ -45,6 +45,7 @@ export const GET: RequestHandler = async ({ params }) => {
 		location_id: entry.location_id,
 		captured_lat: entry.captured_lat,
 		captured_lng: entry.captured_lng,
+		quote_text: entry.quote_text ?? null,
 		template_id: templateId,
 		created_at: entry.created_at,
 		data,

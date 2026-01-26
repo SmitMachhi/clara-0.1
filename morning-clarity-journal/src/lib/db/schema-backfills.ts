@@ -31,22 +31,52 @@ export function migrateEncryptedDataToNewKey(database: Database.Database): void 
 		};
 		const entries = database.prepare(
 			'SELECT id, encrypted_data, captured_lat_encrypted, captured_lng_encrypted,' +
-			' location_id_encrypted FROM entries'
+			' location_id_encrypted, quote_id_encrypted, quote_text_encrypted FROM entries'
 		).all() as Array<{
 			id: number; encrypted_data: Buffer;
 			captured_lat_encrypted: Buffer | null; captured_lng_encrypted: Buffer | null;
 			location_id_encrypted: Buffer | null;
+			quote_id_encrypted: Buffer | null;
+			quote_text_encrypted: Buffer | null;
 		}>;
 		const updateEntry = database.prepare(
 			'UPDATE entries SET encrypted_data = ?, captured_lat_encrypted = ?,' +
-			' captured_lng_encrypted = ?, location_id_encrypted = ? WHERE id = ?'
+			' captured_lng_encrypted = ?, location_id_encrypted = ?,' +
+			' quote_id_encrypted = ?, quote_text_encrypted = ? WHERE id = ?'
 		);
 		for (const row of entries) {
 			const newData = reEncryptRow(row.encrypted_data);
 			const newLat = row.captured_lat_encrypted ? reEncryptRow(row.captured_lat_encrypted) : null;
 			const newLng = row.captured_lng_encrypted ? reEncryptRow(row.captured_lng_encrypted) : null;
 			const newLocationId = row.location_id_encrypted ? reEncryptRow(row.location_id_encrypted) : null;
-			updateEntry.run(newData, newLat, newLng, newLocationId, row.id);
+			const newQuoteId = row.quote_id_encrypted ? reEncryptRow(row.quote_id_encrypted) : null;
+			const newQuoteText = row.quote_text_encrypted ? reEncryptRow(row.quote_text_encrypted) : null;
+			updateEntry.run(newData, newLat, newLng, newLocationId, newQuoteId, newQuoteText, row.id);
+		}
+		const quotes = database.prepare(
+			'SELECT id, text_encrypted FROM quotes'
+		).all() as Array<{ id: number; text_encrypted: Buffer }>;
+		const updateQuote = database.prepare(
+			'UPDATE quotes SET text_encrypted = ? WHERE id = ?'
+		);
+		for (const row of quotes) {
+			const newText = reEncryptRow(row.text_encrypted);
+			updateQuote.run(newText, row.id);
+		}
+		const dailyQuotes = database.prepare(
+			'SELECT date, quote_id_encrypted, quote_text_encrypted FROM daily_quotes'
+		).all() as Array<{
+			date: string;
+			quote_id_encrypted: Buffer | null;
+			quote_text_encrypted: Buffer;
+		}>;
+		const updateDailyQuote = database.prepare(
+			'UPDATE daily_quotes SET quote_id_encrypted = ?, quote_text_encrypted = ? WHERE date = ?'
+		);
+		for (const row of dailyQuotes) {
+			const newQuoteId = row.quote_id_encrypted ? reEncryptRow(row.quote_id_encrypted) : null;
+			const newQuoteText = reEncryptRow(row.quote_text_encrypted);
+			updateDailyQuote.run(newQuoteId, newQuoteText, row.date);
 		}
 		const locations = database.prepare(
 			'SELECT id, name_encrypted, lat_encrypted, lng_encrypted, address_encrypted FROM locations'

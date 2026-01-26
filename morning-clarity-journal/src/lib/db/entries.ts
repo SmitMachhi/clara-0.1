@@ -1,6 +1,11 @@
 import { getDb } from './connection.js';
 import { getLocationById, getLocations } from './locations.js';
-import { decryptOptionalNumber, encryptOptionalNumber } from './crypto-helpers.js';
+import {
+	decryptOptionalNumber,
+	decryptOptionalString,
+	encryptOptionalNumber,
+	encryptOptionalString
+} from './crypto-helpers.js';
 import type { Entry, EntryWithData } from './types.js';
 export function saveEntry(
 	date: string,
@@ -8,6 +13,8 @@ export function saveEntry(
 	locationId: number | null,
 	encryptedData: string,
 	templateId: number | null,
+	quoteId: number | null,
+	quoteText: string | null,
 	capturedLat?: number | null,
 	capturedLng?: number | null
 ): number {
@@ -16,13 +23,15 @@ export function saveEntry(
 	const capturedLatEncrypted = encryptOptionalNumber(capturedLat ?? null);
 	const capturedLngEncrypted = encryptOptionalNumber(capturedLng ?? null);
 	const locationIdEncrypted = encryptOptionalNumber(locationId);
+	const quoteIdEncrypted = encryptOptionalNumber(quoteId);
+	const quoteTextEncrypted = encryptOptionalString(quoteText);
 	const result = database.prepare(`
 		INSERT INTO entries (
 			date, timestamp, location_id, location_id_encrypted,
 			captured_lat, captured_lng, captured_lat_encrypted, captured_lng_encrypted,
-			template_id, encrypted_data
+			quote_id_encrypted, quote_text_encrypted, template_id, encrypted_data
 		)
-		VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`).run(
 		date,
 		timestamp,
@@ -31,6 +40,8 @@ export function saveEntry(
 		null,
 		capturedLatEncrypted,
 		capturedLngEncrypted,
+		quoteIdEncrypted,
+		quoteTextEncrypted,
 		templateId,
 		dataBuffer
 	);
@@ -42,6 +53,8 @@ export function updateEntry(
 	locationId: number | null,
 	encryptedData: string,
 	templateId: number | null,
+	quoteId: number | null,
+	quoteText: string | null,
 	capturedLat?: number | null,
 	capturedLng?: number | null
 ): boolean {
@@ -50,11 +63,14 @@ export function updateEntry(
 	const capturedLatEncrypted = encryptOptionalNumber(capturedLat ?? null);
 	const capturedLngEncrypted = encryptOptionalNumber(capturedLng ?? null);
 	const locationIdEncrypted = encryptOptionalNumber(locationId);
+	const quoteIdEncrypted = encryptOptionalNumber(quoteId);
+	const quoteTextEncrypted = encryptOptionalString(quoteText);
 	const result = database.prepare(`
 		UPDATE entries
 		SET timestamp = ?, location_id = NULL, location_id_encrypted = ?,
 			captured_lat = ?, captured_lng = ?, captured_lat_encrypted = ?,
-			captured_lng_encrypted = ?, template_id = ?, encrypted_data = ?
+			captured_lng_encrypted = ?, quote_id_encrypted = ?, quote_text_encrypted = ?,
+			template_id = ?, encrypted_data = ?
 		WHERE date = ?
 	`).run(
 		timestamp,
@@ -63,6 +79,8 @@ export function updateEntry(
 		null,
 		capturedLatEncrypted,
 		capturedLngEncrypted,
+		quoteIdEncrypted,
+		quoteTextEncrypted,
 		templateId,
 		dataBuffer,
 		date
@@ -147,7 +165,8 @@ export function getEntryByDate(date: string): (EntryWithData & { rawData: Buffer
 	const database = getDb();
 	const row = database.prepare(`
 		SELECT id, date, timestamp, location_id_encrypted, captured_lat_encrypted,
-			captured_lng_encrypted, template_id, encrypted_data, created_at
+			captured_lng_encrypted, quote_id_encrypted, quote_text_encrypted,
+			template_id, encrypted_data, created_at
 		FROM entries
 		WHERE date = ?
 	`).get(date) as {
@@ -157,6 +176,8 @@ export function getEntryByDate(date: string): (EntryWithData & { rawData: Buffer
 		location_id_encrypted: Buffer | null;
 		captured_lat_encrypted: Buffer | null;
 		captured_lng_encrypted: Buffer | null;
+		quote_id_encrypted: Buffer | null;
+		quote_text_encrypted: Buffer | null;
 		template_id: number | null;
 		encrypted_data: Buffer;
 		created_at: string;
@@ -164,6 +185,8 @@ export function getEntryByDate(date: string): (EntryWithData & { rawData: Buffer
 	if (!row) return null;
 	const locationId = decryptOptionalNumber(row.location_id_encrypted);
 	const location = locationId != null ? getLocationById(locationId) : null;
+	const quoteId = decryptOptionalNumber(row.quote_id_encrypted);
+	const quoteText = decryptOptionalString(row.quote_text_encrypted);
 	return {
 		id: row.id,
 		date: row.date,
@@ -173,6 +196,8 @@ export function getEntryByDate(date: string): (EntryWithData & { rawData: Buffer
 		captured_lat: decryptOptionalNumber(row.captured_lat_encrypted),
 		rawData: row.encrypted_data,
 		captured_lng: decryptOptionalNumber(row.captured_lng_encrypted),
+		quote_id: quoteId,
+		quote_text: quoteText ?? undefined,
 		template_id: row.template_id,
 		created_at: row.created_at,
 		data: {} as any

@@ -33,6 +33,7 @@
 	let gpsError = $state('');
 	let entries = $state<Entry[]>([]);
 	let entryDates = $state<string[]>([]);
+	let dailyQuote = $state<string | null>(null);
 	let isSaving = $state(false);
 	let saveError = $state('');
 	let isPastTime = $state(false);
@@ -127,6 +128,7 @@
 		entryDates = result.data.entryDates;
 		template = result.data.template;
 		formData = result.data.formData;
+		dailyQuote = result.data.dailyQuote;
 		return true;
 	}
 
@@ -146,6 +148,16 @@
 		}
 		template = result.data.template;
 		formData = result.data.formData;
+		dailyQuote = result.data.dailyQuote;
+	}
+
+	async function handleQuotesChanged() {
+		const result = await loadJournalPageData();
+		if (!result.data) {
+			console.error('Failed to reload quotes');
+			return;
+		}
+		dailyQuote = result.data.dailyQuote;
 	}
 
 	async function handleSubmit() {
@@ -289,7 +301,7 @@
 						{formData} {locations} {selectedLocationId}
 						{capturedLat} {capturedLng} {isCapturingGps} {gpsError}
 						{isSaving} {saveError} {dateParts} {currentYear}
-						{template}
+						{template} {dailyQuote}
 						{isComplete} {completedFields} {totalFields}
 						onSubmit={handleSubmit}
 						onCaptureLocation={captureCurrentLocation}
@@ -327,4 +339,5 @@
 	onclose={() => settingsOpen = false}
 	onLocationsChanged={handleLocationsChanged}
 	onTemplateChanged={handleTemplateChanged}
+	onQuotesChanged={handleQuotesChanged}
 />

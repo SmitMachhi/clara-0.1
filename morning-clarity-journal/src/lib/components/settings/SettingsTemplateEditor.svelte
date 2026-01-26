@@ -32,13 +32,8 @@
 	} = $props();
 
 	const TEMPLATE_EXAMPLE = [
-		'<hp>Who am I doing this for?',
-		'<mp label="Be specific...">What\'s making me anxious right now?</mp>',
-		'<mp>What am I avoiding?</mp>',
-		'</hp>',
-		'<hp label="Enter answer...">What if the fear is wrong?',
-		'<mp>Evidence this fear might not be true?</mp>',
-		'<mp>Upside if I act despite fear?</mp>',
+		'<hp>Section title',
+		'<mp>Question</mp>',
 		'</hp>'
 	].join('\n');
 	const templateLineNumbers = $derived.by(() => {

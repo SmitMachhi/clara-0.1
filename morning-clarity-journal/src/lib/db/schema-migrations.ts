@@ -81,6 +81,31 @@ export function runMigrations(db: Database.Database): void {
 		'location_id_encrypted',
 		'ALTER TABLE entries ADD COLUMN location_id_encrypted BLOB;'
 	);
+	addColumnIfMissing(
+		db,
+		entriesColumns,
+		'quote_id_encrypted',
+		'ALTER TABLE entries ADD COLUMN quote_id_encrypted BLOB;'
+	);
+	addColumnIfMissing(
+		db,
+		entriesColumns,
+		'quote_text_encrypted',
+		'ALTER TABLE entries ADD COLUMN quote_text_encrypted BLOB;'
+	);
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS quotes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			text_encrypted BLOB NOT NULL,
+			created_at TEXT DEFAULT (datetime('now'))
+		);
+		CREATE TABLE IF NOT EXISTS daily_quotes (
+			date TEXT PRIMARY KEY,
+			quote_id_encrypted BLOB,
+			quote_text_encrypted BLOB NOT NULL,
+			created_at TEXT DEFAULT (datetime('now'))
+		);
+	`);
 	const templatesInfo = db.prepare('PRAGMA table_info(templates)').all() as { name: string }[];
 	const templatesColumns = templatesInfo.map(col => col.name);
 	addColumnIfMissing(

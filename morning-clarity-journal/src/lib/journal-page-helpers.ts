@@ -1,5 +1,6 @@
 import { apiFetch } from '$lib/api-client.js';
 import { fetchEntries, fetchLocations } from '$lib/journal-actions.js';
+import { fetchDailyQuote } from '$lib/quote-actions.js';
 import { createEmptyFormData } from '$lib/template.js';
 import type { TemplateModel } from '$lib/template.js';
 import type { Entry, Location } from '$lib/db.js';
@@ -13,14 +14,16 @@ export interface JournalPageData {
 	entryDates: string[];
 	template: TemplateModel | null;
 	formData: Record<string, string>;
+	dailyQuote: string | null;
 }
 
 export async function loadJournalPageData(): Promise<{ data: JournalPageData | null; error: string }> {
 	try {
-		const [locationsResult, entriesResult, templateResult] = await Promise.all([
+		const [locationsResult, entriesResult, templateResult, dailyQuoteResult] = await Promise.all([
 			fetchLocations().catch(() => null),
 			fetchEntries().catch(() => null),
-			loadTemplate()
+			loadTemplate(),
+			fetchDailyQuote().catch(() => null)
 		]);
 
 		if (!locationsResult || !entriesResult || !templateResult.template) {
@@ -33,7 +36,8 @@ export async function loadJournalPageData(): Promise<{ data: JournalPageData | n
 				entries: entriesResult.entries,
 				entryDates: entriesResult.entryDates,
 				template: templateResult.template,
-				formData: templateResult.formData
+				formData: templateResult.formData,
+				dailyQuote: dailyQuoteResult
 			},
 			error: ''
 		};

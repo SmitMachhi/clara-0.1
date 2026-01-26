@@ -12,6 +12,7 @@
 	import { getTimestampParts, hasLegacyContent } from '$lib/entry-helpers.js';
 	import { apiFetch } from '$lib/api-client.js';
 	import Icon from '$lib/components/Icons.svelte';
+	import QuoteBlock from '$lib/components/QuoteBlock.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	let entry = $state<EntryWithData | null>(null);
 	let template = $state<TemplateModel | null>(null);
@@ -111,6 +112,9 @@
 					</div>
 					<!-- Page content -->
 					<div class="page-content">
+						{#if entry.quote_text}
+							<QuoteBlock text={entry.quote_text} />
+						{/if}
 						{#each template.questions as question}
 							{@const hasContent = question.fields.some(f => entry?.data[f.id as keyof typeof entry.data])}
 							{#if hasContent}

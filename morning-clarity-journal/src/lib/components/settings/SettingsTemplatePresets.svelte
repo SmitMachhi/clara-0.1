@@ -5,7 +5,6 @@
 <script lang="ts">
 	import Dropdown from '$lib/components/Dropdown.svelte';
 	import SettingsGroup from '$lib/components/SettingsGroup.svelte';
-	import ExpandableSection from '$lib/components/ExpandableSection.svelte';
 
 	let {
 		templatePresets,
@@ -52,7 +51,7 @@
 	} = $props();
 </script>
 
-<SettingsGroup header="Presets">
+<SettingsGroup header="Presets" className="sg-presets">
 	<div class="sg-preset-row">
 		<div class="preset-dropdown-wrap">
 			<Dropdown
@@ -72,67 +71,65 @@
 		</button>
 	</div>
 </SettingsGroup>
-<SettingsGroup header="Manage Presets">
-	<ExpandableSection label="Save & Edit Presets">
-		<div class="sg-input-row" style="padding: 0 0 8px;">
-			<input
-				type="text"
-				class="sg-input"
-				placeholder="New preset name"
-				value={presetName}
-				oninput={(event) => onPresetNameChange((event.target as HTMLInputElement).value)}
-			/>
-			<button
-				class="sg-btn sg-btn-secondary"
-				onclick={onSavePreset}
-				disabled={isSavingTemplate || isLoadingTemplate || templatePresets.length >= presetLimit}
-			>
-				Save New
-			</button>
-		</div>
-		{#if presetError}<p class="sg-error" style="padding: 0 0 8px;">{presetError}</p>{/if}
-		{#if presetSuccess}<p class="sg-success" style="padding: 0 0 8px;">{presetSuccess}</p>{/if}
-		{#if templatePresets.length > 0}
-			{#each templatePresets as preset}
-				<div class="sg-preset-item">
-					{#if renamingPresetId === preset.id}
-						<input
-							type="text"
-							class="sg-input"
-							style="flex:1"
-							value={renamingPresetName}
-							oninput={(event) => onRenamingPresetNameChange((event.target as HTMLInputElement).value)}
-						/>
-						<div class="sg-preset-actions">
-							<button class="sg-btn sg-btn-secondary" onclick={onCancelRenamePreset}>Cancel</button>
-							<button
-								class="sg-btn sg-btn-primary"
-								onclick={onSubmitRenamePreset}
-								disabled={isSavingTemplate}
-							>
-								Save
-							</button>
-						</div>
-					{:else}
-						<span class="sg-preset-name">{preset.name}</span>
-						<div class="sg-preset-actions">
-							<button
-								class="sg-btn sg-btn-secondary"
-								onclick={() => onStartRenamePreset(preset.id, preset.name)}
-							>
-								Rename
-							</button>
-							<button
-								class="sg-btn sg-btn-secondary"
-								onclick={() => onDeletePreset(preset.id)}
-								disabled={isSavingTemplate}
-							>
-								Delete
-							</button>
-						</div>
-					{/if}
-				</div>
-			{/each}
-		{/if}
-	</ExpandableSection>
+<SettingsGroup header="Save & Edit">
+	<div class="sg-input-row">
+		<input
+			type="text"
+			class="sg-input"
+			placeholder="Preset name"
+			value={presetName}
+			oninput={(event) => onPresetNameChange((event.target as HTMLInputElement).value)}
+		/>
+		<button
+			class="sg-btn sg-btn-secondary"
+			onclick={onSavePreset}
+			disabled={isSavingTemplate || isLoadingTemplate || templatePresets.length >= presetLimit}
+		>
+			Save
+		</button>
+	</div>
+	{#if presetError}<p class="sg-error" style="padding: 0 0 8px;">{presetError}</p>{/if}
+	{#if presetSuccess}<p class="sg-success" style="padding: 0 0 8px;">{presetSuccess}</p>{/if}
+	{#if templatePresets.length > 0}
+		{#each templatePresets as preset}
+			<div class="sg-preset-item">
+				{#if renamingPresetId === preset.id}
+					<input
+						type="text"
+						class="sg-input"
+						style="flex:1"
+						value={renamingPresetName}
+						oninput={(event) => onRenamingPresetNameChange((event.target as HTMLInputElement).value)}
+					/>
+					<div class="sg-preset-actions">
+						<button class="sg-btn sg-btn-secondary" onclick={onCancelRenamePreset}>Cancel</button>
+						<button
+							class="sg-btn sg-btn-primary"
+							onclick={onSubmitRenamePreset}
+							disabled={isSavingTemplate}
+						>
+							Done
+						</button>
+					</div>
+				{:else}
+					<span class="sg-preset-name">{preset.name}</span>
+					<div class="sg-preset-actions">
+						<button
+							class="sg-btn sg-btn-secondary"
+							onclick={() => onStartRenamePreset(preset.id, preset.name)}
+						>
+							Edit
+						</button>
+						<button
+							class="sg-btn sg-btn-secondary"
+							onclick={() => onDeletePreset(preset.id)}
+							disabled={isSavingTemplate}
+						>
+							Delete
+						</button>
+					</div>
+				{/if}
+			</div>
+		{/each}
+	{/if}
 </SettingsGroup>

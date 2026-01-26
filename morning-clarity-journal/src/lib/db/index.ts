@@ -4,5 +4,6 @@ export * from './locations.js';
 export * from './entries.js';
 export * from './crypto-helpers.js';
 export * from './templates.js';
+export * from './quotes.js';
 export * from './sessions.js';
 export * from './backups.js';

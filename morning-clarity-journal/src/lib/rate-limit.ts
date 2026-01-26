@@ -11,7 +11,8 @@ const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
 	'api_export': { maxRequests: 10, windowMs: 60 * 60 * 1000 },
 	'api_wipe': { maxRequests: 1, windowMs: 24 * 60 * 60 * 1000 },
 	'api_entries_write': { maxRequests: 30, windowMs: 60 * 1000 },
-	'api_locations_write': { maxRequests: 20, windowMs: 60 * 1000 }
+	'api_locations_write': { maxRequests: 20, windowMs: 60 * 1000 },
+	'api_quotes_write': { maxRequests: 30, windowMs: 60 * 1000 }
 };
 
 export function checkRateLimit(key: string, identifier: string): { allowed: boolean; retryAfter?: number } {
@@ -55,5 +56,7 @@ export function getRateLimitKey(pathname: string, method: string): string {
 	if (pathname.startsWith('/api/entries/') && method !== 'GET') return 'api_entries_write';
 	if (pathname === '/api/locations' && method === 'POST') return 'api_locations_write';
 	if (pathname.startsWith('/api/locations/') && method === 'DELETE') return 'api_locations_write';
+	if (pathname === '/api/quotes' && method === 'POST') return 'api_quotes_write';
+	if (pathname.startsWith('/api/quotes/') && method !== 'GET') return 'api_quotes_write';
 	return 'api_default';
 }
