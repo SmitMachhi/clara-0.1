@@ -38,6 +38,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	database.exec('DELETE FROM templates');
 	database.exec('DELETE FROM template_presets');
 	database.exec('DELETE FROM quotes');
+	database.exec('DELETE FROM quote_sources');
 	database.exec('DELETE FROM daily_quotes');
 	database.exec("DELETE FROM config WHERE key != 'encryption_key_migrated_v2' AND key != 'passphrase_salt'");
 

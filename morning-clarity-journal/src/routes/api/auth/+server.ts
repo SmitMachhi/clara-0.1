@@ -17,6 +17,7 @@ import {
 } from '$lib/db.js';
 import { parseDeviceInfo } from '$lib/device-parser.js';
 import { logAuditEvent } from '$lib/audit.js';
+import type { ExistingSessionInfo } from '$lib/session-helpers.js';
 
 interface AuthRequestBody {
 	passphrase?: string;
@@ -86,7 +87,7 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 					device: existingSession.deviceInfo,
 					location: locationDisplay,
 					since: existingSession.createdAt
-				}
+				} as ExistingSessionInfo
 			}, { status: 409 });
 		}
 	}

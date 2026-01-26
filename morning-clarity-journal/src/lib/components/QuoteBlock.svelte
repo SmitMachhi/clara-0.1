@@ -7,6 +7,5 @@
 </script>
 
 <div class="quote-block">
-	<p class="quote-caption">Quote of the day</p>
-	<p class="quote-text">"{text}"</p>
+	<p class="quote-text">{text}</p>
 </div>

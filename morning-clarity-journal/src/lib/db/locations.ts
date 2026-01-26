@@ -6,19 +6,9 @@ import {
 	encryptOptionalString
 } from './crypto-helpers.js';
 import type { Location } from './types.js';
+import { calculateDistance } from '../location-utils.js';
 
-const LOCATION_MATCH_TOLERANCE_KM = 0.5;
-
-function haversineDistanceKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-	const R = 6371;
-	const dLat = (lat2 - lat1) * Math.PI / 180;
-	const dLng = (lng2 - lng1) * Math.PI / 180;
-	const a = Math.sin(dLat / 2) ** 2 +
-		Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-		Math.sin(dLng / 2) ** 2;
-	const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-	return R * c;
-}
+const LOCATION_MATCH_TOLERANCE_METERS = 500;
 
 function normalizeLocationName(value: string): string {
 	return value.trim().toLowerCase();
@@ -50,7 +40,8 @@ export function getLocations(): Location[] {
 export function findMatchingLocation(lat: number, lng: number): Location | null {
 	const locations = getLocations();
 	for (const loc of locations) {
-		if (haversineDistanceKm(lat, lng, loc.lat, loc.lng) < LOCATION_MATCH_TOLERANCE_KM) {
+		const distance = calculateDistance(lat, lng, loc.lat, loc.lng);
+		if (distance <= LOCATION_MATCH_TOLERANCE_METERS) {
 			return loc;
 		}
 	}

@@ -71,6 +71,13 @@ export interface DailyQuote {
 	created_at: string;
 }
 
+export interface QuoteSource {
+	id: number;
+	sourceText: string;
+	created_at: string;
+	updated_at: string;
+}
+
 export interface ActiveSession {
 	nonce: string;
 	expiresAt: number;

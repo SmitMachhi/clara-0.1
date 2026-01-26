@@ -87,13 +87,6 @@ export function getYearDates(year: number): string[] {
 }
 
 /**
- * Get the week day (0 = Sunday, 6 = Saturday) for the first day of the year
- */
-export function getFirstDayOfYear(year: number): number {
-	return new Date(year, 0, 1).getDay();
-}
-
-/**
  * Parse date string to display format for sidebar (includes year)
  */
 export function formatDateForSidebar(dateStr: string): string {

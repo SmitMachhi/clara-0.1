@@ -7,6 +7,15 @@ import {
 	encryptOptionalString
 } from './crypto-helpers.js';
 import type { Entry, EntryWithData } from './types.js';
+
+function buildLocationNameMap(): Map<number, string> {
+	const locations = getLocations();
+	const map = new Map<number, string>();
+	for (const loc of locations) {
+		map.set(loc.id, loc.name);
+	}
+	return map;
+}
 export function saveEntry(
 	date: string,
 	timestamp: string,
@@ -104,11 +113,7 @@ export function getAllEntries(): Entry[] {
 		template_id: number | null;
 		created_at: string;
 	}>;
-	const locations = getLocations();
-	const locationMap = new Map<number, string>();
-	for (const loc of locations) {
-		locationMap.set(loc.id, loc.name);
-	}
+	const locationMap = buildLocationNameMap();
 	return rows.map(row => {
 		const locationId = decryptOptionalNumber(row.location_id_encrypted);
 		const locationName = locationId != null ? locationMap.get(locationId) : undefined;
@@ -140,11 +145,7 @@ export function getRecentEntrySummaries(limit: number): Entry[] {
 		template_id: number | null;
 		created_at: string;
 	}>;
-	const locations = getLocations();
-	const locationMap = new Map<number, string>();
-	for (const loc of locations) {
-		locationMap.set(loc.id, loc.name);
-	}
+	const locationMap = buildLocationNameMap();
 	return rows.map(row => {
 		const locationId = decryptOptionalNumber(row.location_id_encrypted);
 		const locationName = locationId != null ? locationMap.get(locationId) : undefined;

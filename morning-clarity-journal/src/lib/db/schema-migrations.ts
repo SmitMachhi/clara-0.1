@@ -99,6 +99,12 @@ export function runMigrations(db: Database.Database): void {
 			text_encrypted BLOB NOT NULL,
 			created_at TEXT DEFAULT (datetime('now'))
 		);
+		CREATE TABLE IF NOT EXISTS quote_sources (
+			id INTEGER PRIMARY KEY,
+			source_text_encrypted BLOB NOT NULL,
+			created_at TEXT DEFAULT (datetime('now')),
+			updated_at TEXT DEFAULT (datetime('now'))
+		);
 		CREATE TABLE IF NOT EXISTS daily_quotes (
 			date TEXT PRIMARY KEY,
 			quote_id_encrypted BLOB,

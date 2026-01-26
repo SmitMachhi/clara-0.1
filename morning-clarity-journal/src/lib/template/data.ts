@@ -174,16 +174,3 @@ export function createEmptyFormData(template: TemplateModel): Record<string, str
 	return data;
 }
 
-export function getEmptyJournalData(): Record<string, string> {
-	const data: Record<string, string> = {};
-	for (const question of journalTemplate) {
-		for (const field of question.fields) {
-			data[field.id] = '';
-		}
-	}
-	return data;
-}
-
-export function getCurrentFieldIds(): string[] {
-	return journalTemplate.flatMap(q => q.fields.map(f => f.id));
-}

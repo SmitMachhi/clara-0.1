@@ -1,14 +1,10 @@
 import type Database from 'better-sqlite3';
 import { decrypt, decryptWithLegacyKey, encrypt } from '$lib/server/crypto.js';
 import { EMPTY_COORDINATE_PLACEHOLDER, EMPTY_TEXT_PLACEHOLDER } from './connection.js';
-function encryptOptionalString(value: string | null | undefined): Buffer | null {
-	if (value === null || value === undefined) return null;
-	return Buffer.from(encrypt(value), 'utf8');
-}
-function encryptOptionalNumber(value: number | null | undefined): Buffer | null {
-	if (value === null || value === undefined) return null;
-	return Buffer.from(encrypt(value.toString()), 'utf8');
-}
+import {
+	encryptOptionalString,
+	encryptOptionalNumber
+} from './crypto-helpers.js';
 export function migrateEncryptedDataToNewKey(database: Database.Database): void {
 	const migrationDone = database.prepare(
 		"SELECT value FROM config WHERE key = 'encryption_key_migrated_v2'"
@@ -77,6 +73,16 @@ export function migrateEncryptedDataToNewKey(database: Database.Database): void 
 			const newQuoteId = row.quote_id_encrypted ? reEncryptRow(row.quote_id_encrypted) : null;
 			const newQuoteText = reEncryptRow(row.quote_text_encrypted);
 			updateDailyQuote.run(newQuoteId, newQuoteText, row.date);
+		}
+		const quoteSources = database.prepare(
+			'SELECT id, source_text_encrypted FROM quote_sources'
+		).all() as Array<{ id: number; source_text_encrypted: Buffer }>;
+		const updateQuoteSource = database.prepare(
+			'UPDATE quote_sources SET source_text_encrypted = ? WHERE id = ?'
+		);
+		for (const row of quoteSources) {
+			const newSource = reEncryptRow(row.source_text_encrypted);
+			updateQuoteSource.run(newSource, row.id);
 		}
 		const locations = database.prepare(
 			'SELECT id, name_encrypted, lat_encrypted, lng_encrypted, address_encrypted FROM locations'

@@ -1,3 +1,8 @@
+/**
+ * Information about an existing active session.
+ * Used by the auth endpoint to return session details when a user tries to log in
+ * but already has an active session, and by the login page to display this info.
+ */
 export interface ExistingSessionInfo {
 	device: string;
 	location: string;

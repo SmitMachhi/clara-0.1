@@ -1,7 +1,20 @@
 import type { Location } from './db.js';
 import { GPS, DISPLAY } from './constants.js';
 
-export function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+/**
+ * Calculate the distance between two geographic coordinates using the Haversine formula.
+ * @param lat1 - Latitude of first point in degrees
+ * @param lng1 - Longitude of first point in degrees
+ * @param lat2 - Latitude of second point in degrees
+ * @param lng2 - Longitude of second point in degrees
+ * @returns Distance in meters
+ */
+export function calculateDistance(
+	lat1: number,
+	lng1: number,
+	lat2: number,
+	lng2: number
+): number {
 	const dLat = (lat2 - lat1) * Math.PI / 180;
 	const dLng = (lng2 - lng1) * Math.PI / 180;
 	const a =

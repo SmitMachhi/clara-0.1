@@ -1,4 +1,29 @@
+/**
+ * Morning Clarity Journal - Global Styles
+ *
+ * Sections:
+ * 1. Tailwind Import
+ * 2. Theme Variables (@theme + :root)
+ * 3. Base Reset & Typography
+ * 4. Form Elements (inputs, buttons, selects)
+ * 5. Animations
+ * 6. Page Layout (containers, headers)
+ * 7. Content Blocks (toggles, fields)
+ * 8. Sidebar & Navigation
+ * 9. Modals & Overlays
+ * 10. Components (tracker, dropdowns, settings)
+ * 11. Responsive Breakpoints
+ */
+
+/* ==========================================================================
+   1. TAILWIND IMPORT
+   ========================================================================== */
 @import 'tailwindcss';
+
+/* ==========================================================================
+   2. THEME VARIABLES
+   Design tokens for colors, spacing, typography, shadows
+   ========================================================================== */
 
 /*
  * Design System based on Notion's aesthetic:
@@ -9,17 +34,6 @@
  */
 
 @theme {
-	/* Spacing scale (8px base unit) */
-	--spacing-1: 0.25rem;  /* 4px */
-	--spacing-2: 0.5rem;   /* 8px */
-	--spacing-3: 0.75rem;  /* 12px */
-	--spacing-4: 1rem;     /* 16px */
-	--spacing-6: 1.5rem;   /* 24px */
-	--spacing-8: 2rem;     /* 32px */
-	--spacing-12: 3rem;    /* 48px */
-	--spacing-16: 4rem;    /* 64px */
-	--spacing-24: 6rem;    /* 96px */
-
 	/* Notion's Typography - System fonts for native feel */
 	--font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
 	--font-serif: Lyon-Text, Georgia, ui-serif, serif;
@@ -38,13 +52,13 @@
 	--color-missed: #ff7369;
 }
 
-/* ========================================
+/* ==========================================================================
    NOTION-STYLE THEME
    Seamless writing experience
-   ======================================== */
+   ========================================================================== */
 
+/* Light theme (default) - also used when .ritual class is present */
 :root {
-	/* Light theme (Notion default) */
 	--bg: #FFFFFF;
 	--bg-page: rgb(251, 251, 250);
 	--surface: #FFFFFF;
@@ -57,11 +71,15 @@
 	--border: rgba(55, 53, 47, 0.09);
 	--success: #0f7b6c;
 	--missed: #e03e3e;
-	
+	--color-blue: rgb(35, 131, 226);
+	--color-blue-hover: rgb(0, 117, 211);
+	--color-blue-selection: rgba(35, 131, 226, 0.28);
+	--color-blue-bg: rgba(35, 131, 226, 0.1);
+
 	/* Sidebar - Notion's warmer gray */
 	--sidebar-bg: #F7F6F3;
-	
-	/* Spacing tokens */
+
+	/* Spacing tokens (8px base unit) */
 	--space-xs: 0.25rem;
 	--space-sm: 0.5rem;
 	--space-md: 1rem;
@@ -69,7 +87,18 @@
 	--space-xl: 2rem;
 	--space-2xl: 3rem;
 	--space-3xl: 4rem;
-	
+
+	/* Layout tokens */
+	--page-max-width: 900px;
+	--page-padding-desktop: 96px;
+	--page-padding-tablet: 48px;
+	--page-padding-mobile: 32px;
+	--page-padding-small: 16px;
+	--sidebar-width: 280px;
+	--sidebar-width-mobile: 360px;
+	--header-padding-top: 80px;
+	--header-padding-bottom: 32px;
+
 	/* Typography sizes */
 	--text-xs: 0.75rem;
 	--text-sm: 0.875rem;
@@ -78,25 +107,25 @@
 	--text-xl: 1.25rem;
 	--text-2xl: 1.5rem;
 	--text-3xl: 2rem;
-	
+
 	/* Line heights - Notion precise */
 	--leading-tight: 1.3;
 	--leading-normal: 1.5;
 	--leading-relaxed: 1.625;
-	
+
 	/* Letter spacing - Notion's tight spacing */
 	--tracking-tight: -0.003em;
 	--tracking-normal: 0;
-	
+
 	/* Border radius */
 	--radius-sm: 3px;
 	--radius-md: 4px;
 	--radius-lg: 6px;
-	
+
 	/* Transitions */
 	--transition-fast: 100ms ease;
 	--transition-normal: 150ms ease;
-	
+
 	/* No page shadow - Notion is flat */
 	--page-shadow: none;
 
@@ -116,7 +145,7 @@
 	--safe-left: env(safe-area-inset-left, 0px);
 }
 
-/* Dark mode */
+/* Dark mode - also used when .ritual.dark classes are present */
 :root.dark {
 	--bg: #191919;
 	--bg-page: #191919;
@@ -130,59 +159,18 @@
 	--border: rgba(255, 255, 255, 0.094);
 	--success: #4dab9a;
 	--missed: #ff7369;
-	
+
 	/* Sidebar - Notion dark sidebar */
 	--sidebar-bg: #25282B;
-	
+
 	/* No page shadow in dark mode either */
 	--page-shadow: none;
 }
 
-/* Ritual theme (light mode default) - for journal writing */
-:root.ritual {
-	--bg: #FFFFFF;
-	--bg-page: #FFFFFF;
-	--surface: #FFFFFF;
-	--surface-elevated: rgba(55, 53, 47, 0.04);
-	--text: rgb(55, 53, 47);
-	--text-secondary: rgba(55, 53, 47, 0.65);
-	--text-tertiary: rgba(55, 53, 47, 0.4);
-	--text-placeholder: rgba(55, 53, 47, 0.4);
-	--accent: #e04545;
-	--border: rgba(55, 53, 47, 0.09);
-	--success: #0f7b6c;
-	--missed: #e03e3e;
-	
-	/* Sidebar - Notion's warmer gray */
-	--sidebar-bg: #F7F6F3;
-	
-	/* No page shadow - flat like Notion */
-	--page-shadow: none;
-}
-
-/* Ritual dark mode */
-:root.ritual.dark {
-	--bg: #191919;
-	--bg-page: #191919;
-	--surface: #202020;
-	--surface-elevated: rgba(255, 255, 255, 0.04);
-	--text: rgba(255, 255, 255, 0.9);
-	--text-secondary: rgba(255, 255, 255, 0.6);
-	--text-tertiary: rgba(255, 255, 255, 0.4);
-	--text-placeholder: rgba(255, 255, 255, 0.4);
-	--accent: #e04545;
-	--border: rgba(255, 255, 255, 0.094);
-	--success: #4dab9a;
-	--missed: #ff7369;
-	
-	/* Sidebar - Notion dark sidebar */
-	--sidebar-bg: #25282B;
-	
-	/* No page shadow */
-	--page-shadow: none;
-}
-
-/* Base reset */
+/* ==========================================================================
+   3. BASE RESET & TYPOGRAPHY
+   Box-sizing, scrollbars, selection, focus states
+   ========================================================================== */
 * {
 	box-sizing: border-box;
 	margin: 0;
@@ -241,6 +229,10 @@ body {
 }
 
 /* Input styles - Notion-style seamless */
+/* ==========================================================================
+   4. FORM ELEMENTS
+   Inputs, textareas, selects, buttons
+   ========================================================================== */
 input, textarea, select {
 	background-color: transparent;
 	border: none;
@@ -285,7 +277,7 @@ button:disabled {
 
 /* Selection - Notion style blue */
 ::selection {
-	background-color: rgba(35, 131, 226, 0.28);
+	background-color: var(--color-blue-selection);
 }
 
 /* Focus visible for accessibility - subtle and warm */
@@ -299,21 +291,25 @@ button:disabled {
 	box-shadow: 0 0 0 1.5px rgba(200, 170, 130, 0.3);
 }
 
-/* ========================================
+/* ==========================================================================
    ANIMATIONS
-   ======================================== */
+   ========================================================================== */
 
+/* ==========================================================================
+   5. ANIMATIONS
+   Keyframe definitions and animation utility classes
+   ========================================================================== */
 @keyframes fadeIn {
 	from { opacity: 0; }
 	to { opacity: 1; }
 }
 
 @keyframes slideUp {
-	from { 
+	from {
 		opacity: 0;
 		transform: translateY(4px);
 	}
-	to { 
+	to {
 		opacity: 1;
 		transform: translateY(0);
 	}
@@ -345,11 +341,15 @@ button:disabled {
 	animation: spin 0.8s linear infinite;
 }
 
-/* ========================================
+/* ==========================================================================
    NOTION-STYLE PAGE LAYOUT
    Core layout components used across pages
-   ======================================== */
+   ========================================================================== */
 
+/* ==========================================================================
+   6. PAGE LAYOUT
+   Main containers, headers, content areas
+   ========================================================================== */
 .notion-page {
 	min-height: 100vh;
 	min-height: 100dvh;
@@ -375,10 +375,10 @@ button:disabled {
 	padding-bottom: calc(var(--safe-bottom) + 0px);
 }
 
-/* ========================================
+/* ==========================================================================
    MESSAGE STATES
    Loading, error, and info states
-   ======================================== */
+   ========================================================================== */
 
 .message-container {
 	text-align: center;
@@ -409,15 +409,15 @@ button:disabled {
 	margin: 0 auto;
 }
 
-/* ========================================
+/* ==========================================================================
    PAGE CONTAINER
    Like Notion's document container
-   ======================================== */
+   ========================================================================== */
 
 .page-container {
 	width: 100%;
-	max-width: 900px;
-	padding: 0 96px;
+	max-width: var(--page-max-width);
+	padding: 0 var(--page-padding-desktop);
 }
 
 /* Floating header inside page */
@@ -425,7 +425,7 @@ button:disabled {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 80px 0 32px;
+	padding: var(--header-padding-top) 0 var(--header-padding-bottom);
 }
 
 .page-meta {
@@ -481,14 +481,6 @@ button:disabled {
 	border-radius: 6px;
 }
 
-.quote-caption {
-	font-size: 0.6875rem;
-	color: var(--text-tertiary);
-	text-transform: uppercase;
-	letter-spacing: 0.08em;
-	margin: 0 0 6px;
-}
-
 .quote-text {
 	margin: 0;
 	font-size: 1rem;
@@ -513,9 +505,9 @@ button:disabled {
 	color: var(--text-secondary);
 }
 
-/* ========================================
+/* ==========================================================================
    PAGE CONTENT
-   ======================================== */
+   ========================================================================== */
 
 .page-content {
 	padding-bottom: 80px;
@@ -523,11 +515,15 @@ button:disabled {
 	flex-direction: column;
 }
 
-/* ========================================
+/* ==========================================================================
    BLOCK
    Each question/field section
-   ======================================== */
+   ========================================================================== */
 
+/* ==========================================================================
+   7. CONTENT BLOCKS
+   Toggles, fields, question markers
+   ========================================================================== */
 .block {
 	position: relative;
 	margin-bottom: 2px;
@@ -567,10 +563,10 @@ button:disabled {
 	color: var(--text-secondary);
 }
 
-/* ========================================
+/* ==========================================================================
    TOGGLE
    Notion's toggle block style
-   ======================================== */
+   ========================================================================== */
 
 .toggle-header {
 	display: flex;
@@ -644,10 +640,10 @@ button:disabled {
 	padding-bottom: 4px;
 }
 
-/* ========================================
+/* ==========================================================================
    FIELD BLOCK
    Individual input fields
-   ======================================== */
+   ========================================================================== */
 
 .field-block {
 	position: relative;
@@ -680,10 +676,10 @@ button:disabled {
 	position: relative;
 }
 
-/* ========================================
+/* ==========================================================================
    CONTENTEDITABLE INPUT
    Notion's seamless feel
-   ======================================== */
+   ========================================================================== */
 
 .field-input {
 	display: block;
@@ -722,10 +718,10 @@ button:disabled {
 	box-shadow: none;
 }
 
-/* ========================================
+/* ==========================================================================
    FIELD VALUE
    Read-only display of field content
-   ======================================== */
+   ========================================================================== */
 
 .field-value {
 	font-size: 1rem;
@@ -736,9 +732,9 @@ button:disabled {
 	word-break: break-word;
 }
 
-/* ========================================
+/* ==========================================================================
    SAVE SECTION
-   ======================================== */
+   ========================================================================== */
 
 .save-section {
 	margin-top: 48px;
@@ -773,23 +769,27 @@ button:disabled {
 }
 
 .save-btn.ready {
-	background: rgb(35, 131, 226);
+	background: var(--color-blue);
 	color: white;
 	cursor: pointer;
 	border-color: transparent;
 }
 
 .save-btn.ready:hover {
-	background: rgb(0, 117, 211);
+	background: var(--color-blue-hover);
 }
 
 .save-btn.ready:active {
 	transform: scale(0.98);
 }
 
-/* ========================================
+/* ==========================================================================
+   8. SIDEBAR & NAVIGATION
+   Sidebar panel, toggle buttons, navigation controls
+   ========================================================================== */
+/* ==========================================================================
    PROGRESS PILL
-   ======================================== */
+   ========================================================================== */
 
 .progress-pill {
 	position: fixed;
@@ -812,17 +812,17 @@ button:disabled {
 
 .progress-count {
 	font-weight: 600;
-	color: rgb(35, 131, 226);
+	color: var(--color-blue);
 }
 
 .progress-text {
 	color: var(--text-secondary);
 }
 
-/* ========================================
+/* ==========================================================================
    NAVIGATION BUTTONS
    Floating action buttons
-   ======================================== */
+   ========================================================================== */
 
 .nav-btn {
 	position: fixed;
@@ -853,9 +853,9 @@ button:disabled {
 	left: calc(20px + var(--safe-left));
 }
 
-/* ========================================
+/* ==========================================================================
    SIDEBAR TOGGLE BUTTON
-   ======================================== */
+   ========================================================================== */
 
 .sidebar-toggle {
 	position: fixed;
@@ -877,9 +877,9 @@ button:disabled {
 	color: var(--text);
 }
 
-/* ========================================
+/* ==========================================================================
    SIDEBAR OVERLAY
-   ======================================== */
+   ========================================================================== */
 
 .sidebar-overlay {
 	position: fixed;
@@ -889,16 +889,16 @@ button:disabled {
 	display: none;
 }
 
-/* ========================================
+/* ==========================================================================
    SIDEBAR
    Notion's sidebar style
-   ======================================== */
+   ========================================================================== */
 
 .sidebar {
 	position: fixed;
 	top: 0;
 	right: 0;
-	width: 280px;
+	width: var(--sidebar-width);
 	height: 100vh;
 	height: 100dvh;
 	padding-bottom: var(--safe-bottom);
@@ -966,6 +966,10 @@ button:disabled {
 }
 
 /* Settings Modal Overlay */
+/* ==========================================================================
+   9. MODALS & OVERLAYS
+   Settings modal, overlay backgrounds
+   ========================================================================== */
 .settings-overlay {
 	position: fixed;
 	inset: 0;
@@ -1054,10 +1058,14 @@ button:disabled {
 	overflow-y: auto;
 }
 
-/* ========================================
+/* ==========================================================================
+   10. COMPONENTS
+   Tracker, dropdowns, location picker, settings UI
+   ========================================================================== */
+/* ==========================================================================
    TRACKER
    Year progress visualization
-   ======================================== */
+   ========================================================================== */
 
 .tracker-card {
 	background: #fffdf8;
@@ -1100,7 +1108,7 @@ button:disabled {
 }
 
 .tracker-day.today {
-	background: rgb(35, 131, 226);
+	background: var(--color-blue);
 }
 
 .dark .tracker-day {
@@ -1115,9 +1123,9 @@ button:disabled {
 	background: rgba(255, 255, 255, 0.12);
 }
 
-/* ========================================
+/* ==========================================================================
    LEGEND
-   ======================================== */
+   ========================================================================== */
 
 .legend {
 	display: flex;
@@ -1148,9 +1156,9 @@ button:disabled {
 	opacity: 0.3;
 }
 
-/* ========================================
+/* ==========================================================================
    RECENT ENTRIES
-   ======================================== */
+   ========================================================================== */
 
 .recent-heading {
 	font-size: 0.625rem;
@@ -1219,9 +1227,9 @@ button.recent-item:hover {
 	color: var(--text-tertiary);
 }
 
-/* ========================================
+/* ==========================================================================
    EDGE TRIGGER
-   ======================================== */
+   ========================================================================== */
 
 .edge-trigger {
 	position: fixed;
@@ -1233,9 +1241,9 @@ button.recent-item:hover {
 	cursor: e-resize;
 }
 
-/* ========================================
+/* ==========================================================================
    THEME BUTTON
-   ======================================== */
+   ========================================================================== */
 
 .theme-btn {
 	position: fixed;
@@ -1249,13 +1257,13 @@ button.recent-item:hover {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	box-shadow: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px;
+	box-shadow: var(--shadow-sm);
 	transition: all 0.1s;
 	z-index: 50;
 }
 
 .dark .theme-btn {
-	box-shadow: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 3px 6px;
+	box-shadow: var(--shadow-sm-dark);
 }
 
 .theme-btn:hover {
@@ -1263,10 +1271,10 @@ button.recent-item:hover {
 	background: var(--surface-elevated);
 }
 
-/* ========================================
+/* ==========================================================================
    BACK LINK
    Text-based back navigation
-   ======================================== */
+   ========================================================================== */
 
 .back-link {
 	color: var(--text-tertiary);
@@ -1278,10 +1286,10 @@ button.recent-item:hover {
 	color: var(--text);
 }
 
-/* ========================================
+/* ==========================================================================
    LEGACY SECTION
    For displaying old template entries
-   ======================================== */
+   ========================================================================== */
 
 .legacy-section {
 	margin-top: 32px;
@@ -1289,13 +1297,13 @@ button.recent-item:hover {
 	border-top: 1px solid var(--border);
 }
 
-/* ========================================
+/* ==========================================================================
    GPS CAPTURE BUTTON (Main Page)
-   ======================================== */
+   ========================================================================== */
 
-/* ========================================
+/* ==========================================================================
    CUSTOM LOCATION DROPDOWN (Notion-style)
-   ======================================== */
+   ========================================================================== */
 
 .location-dropdown {
 	position: relative;
@@ -1446,7 +1454,7 @@ button.recent-item:hover {
 	align-items: center;
 	gap: 6px;
 	padding: 4px 8px;
-	background: rgba(35, 131, 226, 0.1);
+	background: var(--color-blue-bg);
 	border-radius: 4px;
 	font-size: 0.75rem;
 }
@@ -1487,9 +1495,9 @@ button.recent-item:hover {
 	animation: spin 0.8s linear infinite;
 }
 
-/* ========================================
+/* ==========================================================================
    SETTINGS MODAL - APPLE GROUPED LIST SYSTEM
-   ======================================== */
+   ========================================================================== */
 
 .settings-modal-extended {
 	max-width: 680px;
@@ -1749,39 +1757,9 @@ button.recent-item:hover {
 	gap: 0;
 }
 
-/* -- Quotes tabs -- */
-.sq-tabs {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px;
-	padding: 8px 12px;
-	border-bottom: 1px dashed var(--border);
-}
-
-.sq-tab {
-	padding: 6px 10px;
-	font-size: 0.75rem;
-	border-radius: 999px;
-	border: 1px solid var(--border);
-	background: var(--surface);
-	color: var(--text-secondary);
-	transition: all 0.1s;
-}
-
-.sq-tab:hover {
-	color: var(--text);
-	background: var(--surface-elevated);
-}
-
-.sq-tab.active {
-	color: var(--text);
-	border-color: var(--accent);
-	background: color-mix(in srgb, var(--accent) 10%, var(--surface));
-}
-
-.sq-tab-new {
-	border-style: dashed;
-	color: var(--text-tertiary);
+/* -- Quote editor -- */
+.sq-hl-tag {
+	color: var(--accent);
 }
 
 /* -- Shared settings form elements -- */
@@ -1838,7 +1816,7 @@ button.recent-item:hover {
 }
 
 .sg-btn-primary:hover:not(:disabled) {
-	background: rgb(0, 117, 211);
+	background: var(--color-blue-hover);
 }
 
 .sg-btn-secondary {
@@ -1946,7 +1924,7 @@ button.recent-item:hover {
 }
 
 .sg-gps-btn:hover:not(:disabled) {
-	background: rgb(0, 117, 211);
+	background: var(--color-blue-hover);
 }
 
 .sg-gps-btn:disabled {
@@ -2400,9 +2378,9 @@ button.recent-item:hover {
 	}
 }
 
-/* ========================================
+/* ==========================================================================
    PASSPHRASE CHANGE
-   ======================================== */
+   ========================================================================== */
 
 .passphrase-form {
 	display: flex;
@@ -2433,22 +2411,26 @@ button.recent-item:hover {
 	opacity: 0.5;
 }
 
-/* ========================================
+/* ==========================================================================
    RESPONSIVE LAYOUT
    Gradual adaptation across breakpoints
-   ======================================== */
+   ========================================================================== */
 
 /* Tablet landscape / smaller desktop */
+/* ==========================================================================
+   11. RESPONSIVE BREAKPOINTS
+   Tablet and mobile adaptations
+   ========================================================================== */
 @media (max-width: 1024px) {
 	.page-container {
-		padding: 0 48px;
+		padding: 0 var(--page-padding-tablet);
 	}
 }
 
 /* Tablet portrait */
 @media (max-width: 860px) {
 	.page-container {
-		padding: 0 32px;
+		padding: 0 var(--page-padding-mobile);
 	}
 
 	.page-header {
@@ -2476,8 +2458,8 @@ button.recent-item:hover {
 	}
 
 	.sidebar {
-		width: min(100%, 360px);
-		max-width: 360px;
+		width: min(100%, var(--sidebar-width-mobile));
+		max-width: var(--sidebar-width-mobile);
 	}
 
 	.progress-pill {
@@ -2554,7 +2536,7 @@ button.recent-item:hover {
 /* Mobile */
 @media (max-width: 480px) {
 	.page-container {
-		padding: 0 16px;
+		padding: 0 var(--page-padding-small);
 	}
 
 	.page-header {

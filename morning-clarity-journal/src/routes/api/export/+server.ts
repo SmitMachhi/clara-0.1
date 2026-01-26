@@ -6,12 +6,13 @@ import {
 	getActiveTemplate,
 	getTemplatePresets,
 	getTemplatePresetById,
-	getQuotes,
+	getQuoteSource,
 	getDailyQuotes
 } from '$lib/db.js';
 import { decrypt } from '$lib/server/crypto.js';
 import { noStoreHeaders } from '$lib/api-helpers.js';
 import { logAuditEvent } from '$lib/audit.js';
+import { parseQuoteSource } from '$lib/quote-parser.js';
 
 export const GET: RequestHandler = async () => {
 	logAuditEvent({
@@ -54,6 +55,9 @@ export const GET: RequestHandler = async () => {
 		};
 	});
 
+	const quoteSource = getQuoteSource();
+	const parsedQuotes = quoteSource ? parseQuoteSource(quoteSource.sourceText).quotes : [];
+
 	const exportData = {
 		exportedAt: new Date().toISOString(),
 		entries: entriesWithData,
@@ -63,11 +67,8 @@ export const GET: RequestHandler = async () => {
 			lng: location.lng,
 			address: location.address
 		})),
-		quotes: getQuotes().map(quote => ({
-			id: quote.id,
-			text: quote.text,
-			created_at: quote.created_at
-		})),
+		quoteSource: quoteSource?.sourceText ?? null,
+		quotes: parsedQuotes,
 		dailyQuotes: getDailyQuotes().map(quote => ({
 			date: quote.date,
 			text: quote.text,

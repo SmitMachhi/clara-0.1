@@ -58,5 +58,6 @@ export function getRateLimitKey(pathname: string, method: string): string {
 	if (pathname.startsWith('/api/locations/') && method === 'DELETE') return 'api_locations_write';
 	if (pathname === '/api/quotes' && method === 'POST') return 'api_quotes_write';
 	if (pathname.startsWith('/api/quotes/') && method !== 'GET') return 'api_quotes_write';
+	if (pathname === '/api/quotes/source' && method === 'POST') return 'api_quotes_write';
 	return 'api_default';
 }
