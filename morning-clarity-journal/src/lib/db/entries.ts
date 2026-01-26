@@ -60,46 +60,6 @@ export function saveEntry(
 	);
 	return result.lastInsertRowid as number;
 }
-export function updateEntry(
-	date: string,
-	timestamp: string,
-	locationId: number | null,
-	encryptedData: string,
-	templateId: number | null,
-	quoteId: number | null,
-	quoteText: string | null,
-	capturedLat?: number | null,
-	capturedLng?: number | null
-): boolean {
-	const database = getDb();
-	const dataBuffer = Buffer.from(encryptedData, 'utf8');
-	const capturedLatEncrypted = encryptOptionalNumber(capturedLat ?? null);
-	const capturedLngEncrypted = encryptOptionalNumber(capturedLng ?? null);
-	const locationIdEncrypted = encryptOptionalNumber(locationId);
-	const quoteIdEncrypted = encryptOptionalNumber(quoteId);
-	const quoteTextEncrypted = encryptOptionalString(quoteText);
-	const result = database.prepare(`
-		UPDATE entries
-		SET timestamp = ?, location_id = NULL, location_id_encrypted = ?,
-			captured_lat = ?, captured_lng = ?, captured_lat_encrypted = ?,
-			captured_lng_encrypted = ?, quote_id_encrypted = ?, quote_text_encrypted = ?,
-			template_id = ?, encrypted_data = ?
-		WHERE date = ?
-	`).run(
-		timestamp,
-		locationIdEncrypted,
-		null,
-		null,
-		capturedLatEncrypted,
-		capturedLngEncrypted,
-		quoteIdEncrypted,
-		quoteTextEncrypted,
-		templateId,
-		dataBuffer,
-		date
-	);
-	return result.changes > 0;
-}
 export function getAllEntries(): Entry[] {
 	const database = getDb();
 	const rows = database.prepare(`
@@ -207,11 +167,6 @@ export function getEntryByDate(date: string): (EntryWithData & { rawData: Buffer
 		created_at: row.created_at,
 		data: {} as any
 	};
-}
-export function hasEntryForDate(date: string): boolean {
-	const database = getDb();
-	const row = database.prepare('SELECT 1 FROM entries WHERE date = ?').get(date);
-	return !!row;
 }
 export function getEntryDates(): string[] {
 	const database = getDb();

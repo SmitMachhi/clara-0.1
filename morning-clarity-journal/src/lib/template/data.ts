@@ -1,6 +1,6 @@
 import type { TemplateModel, TemplateQuestion } from './types.js';
 
-export const journalTemplate: TemplateQuestion[] = [
+const journalTemplate: TemplateQuestion[] = [
 	{
 		id: 'q1',
 		number: 1,
@@ -117,42 +117,6 @@ export const journalTemplate: TemplateQuestion[] = [
 	}
 ];
 
-export const legacyFieldIds = [
-	'whoAmIDoingThisFor',
-	'whatMakingAnxious',
-	'whatAvoiding',
-	'whyAvoiding',
-	'fearUnderneath',
-	'howLikely',
-	'howBad10Days',
-	'howBad10Months',
-	'howBad10Years',
-	'realFear',
-	'evidenceFearNotTrue',
-	'kimTest',
-	'whatDoILose',
-	'upsideIfAct',
-	'whatConsumeInsteadProduce',
-	'egoWillTell',
-	'exactDistraction',
-	'triggerTimeSituation',
-	'temptedWhenWillBecause',
-	'wasteToday',
-	'track',
-	'nonNeg1What',
-	'nonNeg1When',
-	'nonNeg2What',
-	'nonNeg2When',
-	'nonNeg3What',
-	'nonNeg3When',
-	'trapRule',
-	'consumeInsteadProduce',
-	'commitment1',
-	'commitment2',
-	'commitment3',
-	'likelihood'
-];
-
 export function serializeDefaultTemplate(): string {
 	const lines: string[] = [];
 	for (const question of journalTemplate) {
@@ -173,4 +137,3 @@ export function createEmptyFormData(template: TemplateModel): Record<string, str
 	}
 	return data;
 }
-

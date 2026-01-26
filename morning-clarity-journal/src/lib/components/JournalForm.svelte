@@ -37,6 +37,7 @@
 		completedFields,
 		totalFields,
 		onSubmit,
+		onFieldChange,
 		onCaptureLocation,
 		onClearLocation,
 		onSelectLocation,
@@ -59,6 +60,7 @@
 		completedFields: number;
 		totalFields: number;
 		onSubmit: () => void;
+		onFieldChange: (fieldId: string, value: string) => void;
 		onCaptureLocation: () => void;
 		onClearLocation: () => void;
 		onSelectLocation: (id: number) => void;
@@ -75,7 +77,7 @@
 	}
 	function handleInput(event: Event, fieldId: string) {
 		const target = event.currentTarget as HTMLElement;
-		formData[fieldId] = target.textContent || '';
+		onFieldChange(fieldId, target.textContent || '');
 	}
 	async function handleFieldFocus(questionId: string) {
 		if (!expandedSections.has(questionId)) {
@@ -172,7 +174,7 @@
 									onpaste={(event) => {
 										const updated = handlePaste(event);
 										if (!updated) return;
-										formData[field.id] = updated;
+										onFieldChange(field.id, updated);
 									}}
 									onfocus={() => handleFieldFocus(question.id)}
 								></div>

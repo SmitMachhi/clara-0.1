@@ -12,7 +12,7 @@ export const EMPTY_COORDINATE_PLACEHOLDER = 0;
 // Lazy-initialized database connection
 let db: Database.Database | null = null;
 
-export function getDbInternal(): Database.Database {
+function getDbInternal(): Database.Database {
 	if (db) return db;
 
 	// Ensure data directory exists

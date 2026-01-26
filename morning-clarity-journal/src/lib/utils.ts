@@ -71,7 +71,6 @@ export function isPastCutoff(date: Date = new Date()): boolean {
 
 const yearDatesCache = new Map<number, string[]>();
 const MAX_YEAR_CACHE_SIZE = 3;
-
 /**
  * Get all dates in a year
  */
@@ -98,18 +97,6 @@ export function getYearDates(year: number): string[] {
 	yearDatesCache.set(year, dates);
 
 	return [...dates];
-}
-
-/**
- * Parse date string to display format for sidebar (includes year)
- */
-export function formatDateForSidebar(dateStr: string): string {
-	const date = new Date(dateStr + 'T12:00:00');
-	const day = date.getDate();
-	const suffix = getOrdinalSuffix(day);
-	const month = date.toLocaleDateString('en-US', { month: 'short' });
-	const year = date.getFullYear();
-	return `${day}${suffix} ${month} ${year}`;
 }
 
 /**

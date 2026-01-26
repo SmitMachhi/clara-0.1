@@ -931,3 +931,7 @@ Step 4: Consolidated rate-limit cleanup/count/min timestamp into a transactional
 Step 5: Batched audit log cleanup to every 50 writes and delete in batches, reducing per-write count/delete overhead. `npx svelte-check --threshold error` found 0 errors and 0 warnings.
 Step 6: Updated locationNameExists to use cached getLocations with normalized string comparison and optional excludeId. `npx svelte-check --threshold error` found 0 errors and 0 warnings.
 Step 7: Ensured module-level template regex state is reset before parsing by resetting HP regex lastIndex on each parse run. `npx svelte-check --threshold error` found 0 errors and 0 warnings.
+Step 8: Updated journal time refresh to recompute date parts only on minute change, reducing expensive formatting calls. `npx svelte-check --threshold error` found 0 errors and 0 warnings.
+Step 9: Replaced per-keystroke hp field filtering with incremental completion tracking via field-change callbacks and periodic resync on template/draft updates. `npx svelte-check --threshold error` found 0 errors and 0 warnings.
+Step 10: Added a bounded date format cache and wrapped formatDateForSidebar to reuse cached formatted strings. `npx svelte-check --threshold error` found 0 errors and 0 warnings.
+Step 11: Ran `npm run build` successfully. Ran `npm run dev`, server reported ready at `http://localhost:5174/` (command timed out due to long-running dev server).

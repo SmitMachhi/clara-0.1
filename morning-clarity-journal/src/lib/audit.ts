@@ -74,27 +74,3 @@ function sanitizeDetails(details: Record<string, unknown>): Record<string, unkno
 
 	return sanitized;
 }
-
-export function getRecentAuditLogs(limit: number = 100): Array<{
-	id: number;
-	timestamp: number;
-	event_type: string;
-	ip_address: string | null;
-	session_id: string | null;
-	details: string | null;
-}> {
-	const database = getDb();
-	return database.prepare(`
-		SELECT id, timestamp, event_type, ip_address, session_id, details
-		FROM audit_log
-		ORDER BY timestamp DESC
-		LIMIT ?
-	`).all(limit) as Array<{
-		id: number;
-		timestamp: number;
-		event_type: string;
-		ip_address: string | null;
-		session_id: string | null;
-		details: string | null;
-	}>;
-}

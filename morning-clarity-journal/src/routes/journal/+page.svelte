@@ -56,18 +56,40 @@
 			.map(field => field.id);
 	});
 
-	let completedFields = $derived(hpFieldIds.filter(id => formData[id]?.trim().length > 0).length);
+	let completedFieldsCount = $state(0);
+	let completedFields = $derived(completedFieldsCount);
 	let totalFields = $derived(hpFieldIds.length);
-	let isComplete = $derived(completedFields === totalFields);
+	let isComplete = $derived(completedFieldsCount === totalFields);
+
+	function syncCompletedFieldsCount(): void {
+		completedFieldsCount = hpFieldIds.filter(id => formData[id]?.trim().length > 0).length;
+	}
+
+	function updateFieldValue(fieldId: string, nextValue: string): void {
+		const wasCompleted = !!formData[fieldId]?.trim();
+		const isCompleted = !!nextValue.trim();
+		if (!wasCompleted && isCompleted) {
+			completedFieldsCount += 1;
+		} else if (wasCompleted && !isCompleted) {
+			completedFieldsCount = Math.max(0, completedFieldsCount - 1);
+		}
+		formData[fieldId] = nextValue;
+	}
 
 	onMount(() => {
 		isMounted = true;
 		document.documentElement.classList.add('ritual');
 		isPastTime = isPastCutoff();
+		let lastMinute = new Date().getMinutes();
 		const interval = setInterval(() => {
-			const nextParts = getDateTimeParts(new Date());
-			if (nextParts.time !== dateParts.time || nextParts.day !== dateParts.day) {
-				dateParts = nextParts;
+			const now = new Date();
+			const currentMinute = now.getMinutes();
+			if (currentMinute !== lastMinute) {
+				lastMinute = currentMinute;
+				const nextParts = getDateTimeParts(now);
+				if (nextParts.time !== dateParts.time || nextParts.day !== dateParts.day) {
+					dateParts = nextParts;
+				}
 			}
 			const nextIsPast = isPastCutoff();
 			if (nextIsPast !== isPastTime) {
@@ -100,6 +122,7 @@
 			if (!ok) return;
 			hasEntryToday = entryDates.includes(today);
 			formData = restoreDraft(formData);
+			syncCompletedFieldsCount();
 		};
 
 		void init();
@@ -129,6 +152,7 @@
 		template = result.data.template;
 		formData = result.data.formData;
 		dailyQuote = result.data.dailyQuote;
+		syncCompletedFieldsCount();
 		return true;
 	}
 
@@ -137,6 +161,7 @@
 		if (ok) {
 			hasEntryToday = entryDates.includes(today);
 			formData = restoreDraft(formData);
+			syncCompletedFieldsCount();
 		}
 	}
 
@@ -149,6 +174,7 @@
 		template = result.data.template;
 		formData = result.data.formData;
 		dailyQuote = result.data.dailyQuote;
+		syncCompletedFieldsCount();
 	}
 
 	async function handleQuotesChanged() {
@@ -304,6 +330,7 @@
 						{template} {dailyQuote}
 						{isComplete} {completedFields} {totalFields}
 						onSubmit={handleSubmit}
+						onFieldChange={updateFieldValue}
 						onCaptureLocation={captureCurrentLocation}
 						onClearLocation={clearCapturedLocation}
 						onSelectLocation={(id) => {
