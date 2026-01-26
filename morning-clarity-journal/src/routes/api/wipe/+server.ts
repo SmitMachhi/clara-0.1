@@ -27,7 +27,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		return errorResponse('Passphrase required for destructive operations', 400);
 	}
 
-	const isValid = verifyPassphrase(passphrase);
+	const isValid = await verifyPassphrase(passphrase);
 	if (!isValid) {
 		return errorResponse('Invalid passphrase', 401);
 	}

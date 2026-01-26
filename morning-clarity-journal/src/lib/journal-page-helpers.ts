@@ -19,9 +19,10 @@ export interface JournalPageData {
 
 export async function loadJournalPageData(): Promise<{ data: JournalPageData | null; error: string }> {
 	try {
+		const currentYear = new Date().getFullYear();
 		const [locationsResult, entriesResult, templateResult, dailyQuoteResult] = await Promise.all([
 			fetchLocations().catch(() => null),
-			fetchEntries().catch(() => null),
+			fetchEntries(currentYear).catch(() => null),
 			loadTemplate(),
 			fetchDailyQuote().catch(() => null)
 		]);

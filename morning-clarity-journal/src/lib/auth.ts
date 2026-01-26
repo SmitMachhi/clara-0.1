@@ -1,7 +1,10 @@
-import { randomBytes, createHmac, timingSafeEqual, pbkdf2Sync } from 'crypto';
+import { randomBytes, createHmac, timingSafeEqual, pbkdf2 } from 'crypto';
+import { promisify } from 'util';
 import { env } from '$env/dynamic/private';
 import { getAuthRateLimit, setAuthRateLimit, clearAuthRateLimit, getPassphraseSalt } from '$lib/db.js';
 import { validatePassphraseStrength } from '$lib/validation.js';
+
+const pbkdf2Async = promisify(pbkdf2);
 
 const SESSION_DURATION_MS = 4 * 60 * 60 * 1000; // 4 hours
 export const SESSION_REFRESH_THRESHOLD_MS = 30 * 60 * 1000; // Refresh if less than 30 minutes remaining
@@ -117,7 +120,7 @@ export function clearAuthFailures(ip: string): void {
 	clearAuthRateLimit(ip);
 }
 
-export function verifyPassphrase(input: string): boolean {
+export async function verifyPassphrase(input: string): Promise<boolean> {
 	const expected = env.JOURNAL_PASSPHRASE;
 	if (!expected) {
 		throw new Error('JOURNAL_PASSPHRASE environment variable is not set');
@@ -127,8 +130,8 @@ export function verifyPassphrase(input: string): boolean {
 	const saltHex = getPassphraseSalt();
 	const salt = Buffer.from(saltHex, 'hex');
 
-	const inputKey = pbkdf2Sync(input, salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, 'sha256');
-	const expectedKey = pbkdf2Sync(expected, salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, 'sha256');
+	const inputKey = await pbkdf2Async(input, salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, 'sha256') as Buffer;
+	const expectedKey = await pbkdf2Async(expected, salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, 'sha256') as Buffer;
 	return timingSafeEqual(inputKey, expectedKey);
 }
 

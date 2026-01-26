@@ -1,6 +1,7 @@
 import type { RequestHandler } from './$types';
 import { createBackup, getBackups, decryptBackup } from '$lib/db.js';
 import { readFileSync } from 'fs';
+import { Readable } from 'stream';
 import path from 'path';
 import { successResponse, errorResponse, notFoundResponse, noStoreHeaders } from '$lib/api-helpers.js';
 import { logAuditEvent } from '$lib/audit.js';
@@ -54,25 +55,27 @@ export const GET: RequestHandler = async ({ url }) => {
 		}
 
 		try {
-			let fileBuffer: Buffer;
+			let responseStream: ReadableStream<Uint8Array>;
+			const downloadFilename = filename.replace('.enc', '');
 
 			if (filename.endsWith('.enc')) {
-				// Decrypt encrypted backup for download
-				fileBuffer = decryptBackup(backup.path);
+				const decryptedStream = decryptBackup(backup.path);
+				responseStream = Readable.toWeb(decryptedStream) as ReadableStream<Uint8Array>;
 			} else {
-				// Legacy unencrypted backup
-				fileBuffer = readFileSync(backup.path);
+				responseStream = new ReadableStream({
+					async start(controller) {
+						const fileBuffer = readFileSync(backup.path);
+						controller.enqueue(new Uint8Array(fileBuffer));
+						controller.close();
+					}
+				});
 			}
 
-			// Remove .enc extension for download filename (user gets decrypted .db file)
-			const downloadFilename = filename.replace('.enc', '');
-			const responseBody = new Uint8Array(fileBuffer);
-			return new Response(responseBody, {
+			return new Response(responseStream, {
 				headers: {
 					...noStoreHeaders(),
 					'Content-Type': 'application/octet-stream',
-					'Content-Disposition': `attachment; filename="${downloadFilename}"`,
-					'Content-Length': fileBuffer.length.toString()
+					'Content-Disposition': `attachment; filename="${downloadFilename}"`
 				}
 			});
 		} catch (error) {
@@ -85,7 +88,7 @@ export const GET: RequestHandler = async ({ url }) => {
 
 export const POST: RequestHandler = async () => {
 	try {
-		const backupPath = createBackup();
+		const backupPath = await createBackup();
 		const backups = getBackups();
 		const latest = backups[0];
 		const backupFilename = path.basename(backupPath);

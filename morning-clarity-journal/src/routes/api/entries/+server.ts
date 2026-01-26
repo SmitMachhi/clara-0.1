@@ -3,6 +3,7 @@ import {
 	getActiveTemplate,
 	saveEntry,
 	getEntryDates,
+	getEntryDatesForYear,
 	getRecentEntrySummaries,
 	getOrCreateDailyQuote
 } from '$lib/db.js';
@@ -12,8 +13,12 @@ import { validateCoordinates } from '$lib/validation.js';
 import { parseJsonBody, successResponse, errorResponse, noStoreHeaders } from '$lib/api-helpers.js';
 import { encrypt } from '$lib/server/crypto.js';
 
-export const GET: RequestHandler = async () => {
-	const entryDates = getEntryDates();
+export const GET: RequestHandler = async ({ url }) => {
+	const yearParam = url.searchParams.get('year');
+	const currentYear = new Date().getFullYear();
+	const year = yearParam ? parseInt(yearParam, 10) : currentYear;
+	const validYear = !isNaN(year) && year > 1900 && year < 2100 ? year : currentYear;
+	const entryDates = getEntryDatesForYear(validYear);
 	const recentEntries = getRecentEntrySummaries(DISPLAY.RECENT_ENTRIES_LIMIT);
 
 	return successResponse({ recentEntries, entryDates }, noStoreHeaders());

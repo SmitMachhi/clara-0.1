@@ -57,7 +57,7 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
 		return json({ success: false, error: 'Authentication failed' }, { status: 401 });
 	}
 
-	const isValid = verifyPassphrase(passphrase);
+	const isValid = await verifyPassphrase(passphrase);
 	if (!isValid) {
 		recordAuthFailure(ip);
 		logAuditEvent({

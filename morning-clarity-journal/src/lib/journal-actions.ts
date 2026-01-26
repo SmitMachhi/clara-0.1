@@ -19,8 +19,12 @@ export async function fetchLocations(): Promise<Location[]> {
 	return Array.isArray(data.locations) ? data.locations : [];
 }
 
-export async function fetchEntries(): Promise<{ entries: Entry[]; entryDates: string[] }> {
-	const res = await apiFetch('/api/entries');
+export async function fetchEntries(year?: number): Promise<{ entries: Entry[]; entryDates: string[] }> {
+	const url = new URL('/api/entries', window.location.origin);
+	if (year !== undefined) {
+		url.searchParams.set('year', year.toString());
+	}
+	const res = await apiFetch(url.toString());
 	if (!res.ok) {
 		throw new Error(`Failed to fetch entries: ${res.status}`);
 	}

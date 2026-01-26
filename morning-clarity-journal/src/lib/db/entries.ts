@@ -175,3 +175,39 @@ export function getEntryDates(): string[] {
 	).all() as { date: string }[];
 	return rows.map(r => r.date);
 }
+
+export function getEntryDatesForYear(year: number): string[] {
+	const database = getDb();
+	const startDate = `${year}-01-01`;
+	const endDate = `${year}-12-31`;
+	const rows = database.prepare(
+		'SELECT date FROM entries WHERE date >= ? AND date <= ? ORDER BY date'
+	).all(startDate, endDate) as { date: string }[];
+	return rows.map(r => r.date);
+}
+
+interface EntryRawData {
+	id: number;
+	date: string;
+	timestamp: string;
+	location_id_encrypted: Buffer | null;
+	captured_lat_encrypted: Buffer | null;
+	captured_lng_encrypted: Buffer | null;
+	quote_id_encrypted: Buffer | null;
+	quote_text_encrypted: Buffer | null;
+	encrypted_data: Buffer;
+	template_id: number | null;
+}
+
+export function iterateEntriesWithRawData(): Iterable<EntryRawData> {
+	const database = getDb();
+	const statement = database.prepare(`
+		SELECT id, date, timestamp, location_id_encrypted,
+			captured_lat_encrypted, captured_lng_encrypted,
+			quote_id_encrypted, quote_text_encrypted,
+			encrypted_data, template_id
+		FROM entries
+		ORDER BY date DESC
+	`);
+	return statement.iterate() as Iterable<EntryRawData>;
+}

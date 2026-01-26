@@ -11,6 +11,7 @@ export function migrateEncryptedDataToNewKey(database: Database.Database): void 
 	).get() as { value: string } | undefined;
 	if (migrationDone?.value === 'true') return;
 	const migrate = database.transaction(() => {
+		// Use iterate() instead of all() to avoid loading full tables into memory
 		const reEncryptRow = (blob: Buffer): Buffer => {
 			const stored = blob.toString('utf8');
 			try {
@@ -34,7 +35,13 @@ export function migrateEncryptedDataToNewKey(database: Database.Database): void 
 			'SELECT id, encrypted_data, captured_lat_encrypted, captured_lng_encrypted,' +
 			' location_id_encrypted, quote_id_encrypted, quote_text_encrypted FROM entries'
 		);
-		for (const row of selectEntries.iterate()) {
+		for (const row of selectEntries.iterate() as Iterable<{
+			id: number; encrypted_data: Buffer;
+			captured_lat_encrypted: Buffer | null; captured_lng_encrypted: Buffer | null;
+			location_id_encrypted: Buffer | null;
+			quote_id_encrypted: Buffer | null;
+			quote_text_encrypted: Buffer | null;
+		}>) {
 			const newData = reEncryptRow(row.encrypted_data);
 			const newLat = row.captured_lat_encrypted ? reEncryptRow(row.captured_lat_encrypted) : null;
 			const newLng = row.captured_lng_encrypted ? reEncryptRow(row.captured_lng_encrypted) : null;
@@ -49,7 +56,7 @@ export function migrateEncryptedDataToNewKey(database: Database.Database): void 
 		const selectQuotes = database.prepare(
 			'SELECT id, text_encrypted FROM quotes'
 		);
-		for (const row of selectQuotes.iterate()) {
+		for (const row of selectQuotes.iterate() as Iterable<{ id: number; text_encrypted: Buffer }>) {
 			const newText = reEncryptRow(row.text_encrypted);
 			updateQuote.run(newText, row.id);
 		}
@@ -59,7 +66,11 @@ export function migrateEncryptedDataToNewKey(database: Database.Database): void 
 		const selectDailyQuotes = database.prepare(
 			'SELECT date, quote_id_encrypted, quote_text_encrypted FROM daily_quotes'
 		);
-		for (const row of selectDailyQuotes.iterate()) {
+		for (const row of selectDailyQuotes.iterate() as Iterable<{
+			date: string;
+			quote_id_encrypted: Buffer | null;
+			quote_text_encrypted: Buffer;
+		}>) {
 			const newQuoteId = row.quote_id_encrypted ? reEncryptRow(row.quote_id_encrypted) : null;
 			const newQuoteText = reEncryptRow(row.quote_text_encrypted);
 			updateDailyQuote.run(newQuoteId, newQuoteText, row.date);
@@ -70,7 +81,7 @@ export function migrateEncryptedDataToNewKey(database: Database.Database): void 
 		const selectQuoteSources = database.prepare(
 			'SELECT id, source_text_encrypted FROM quote_sources'
 		);
-		for (const row of selectQuoteSources.iterate()) {
+		for (const row of selectQuoteSources.iterate() as Iterable<{ id: number; source_text_encrypted: Buffer }>) {
 			const newSource = reEncryptRow(row.source_text_encrypted);
 			updateQuoteSource.run(newSource, row.id);
 		}
@@ -81,7 +92,11 @@ export function migrateEncryptedDataToNewKey(database: Database.Database): void 
 		const selectLocations = database.prepare(
 			'SELECT id, name_encrypted, lat_encrypted, lng_encrypted, address_encrypted FROM locations'
 		);
-		for (const row of selectLocations.iterate()) {
+		for (const row of selectLocations.iterate() as Iterable<{
+			id: number; name_encrypted: Buffer | null;
+			lat_encrypted: Buffer | null; lng_encrypted: Buffer | null;
+			address_encrypted: Buffer | null;
+		}>) {
 			const newName = row.name_encrypted ? reEncryptRow(row.name_encrypted) : null;
 			const newLat = row.lat_encrypted ? reEncryptRow(row.lat_encrypted) : null;
 			const newLng = row.lng_encrypted ? reEncryptRow(row.lng_encrypted) : null;
@@ -94,7 +109,7 @@ export function migrateEncryptedDataToNewKey(database: Database.Database): void 
 		const selectTemplates = database.prepare(
 			'SELECT id, source_text_encrypted, parsed_json_encrypted FROM templates'
 		);
-		for (const row of selectTemplates.iterate()) {
+		for (const row of selectTemplates.iterate() as Iterable<{ id: number; source_text_encrypted: Buffer; parsed_json_encrypted: Buffer }>) {
 			const newSource = reEncryptRow(row.source_text_encrypted);
 			const newParsed = reEncryptRow(row.parsed_json_encrypted);
 			updateTemplate.run(newSource, newParsed, row.id);
@@ -105,7 +120,7 @@ export function migrateEncryptedDataToNewKey(database: Database.Database): void 
 		const selectPresets = database.prepare(
 			'SELECT id, source_text_encrypted, parsed_json_encrypted FROM template_presets'
 		);
-		for (const row of selectPresets.iterate()) {
+		for (const row of selectPresets.iterate() as Iterable<{ id: number; source_text_encrypted: Buffer; parsed_json_encrypted: Buffer }>) {
 			const newSource = reEncryptRow(row.source_text_encrypted);
 			const newParsed = reEncryptRow(row.parsed_json_encrypted);
 			updatePreset.run(newSource, newParsed, row.id);
@@ -116,7 +131,9 @@ export function migrateEncryptedDataToNewKey(database: Database.Database): void 
 	});
 	migrate();
 }
+
 export function backfillTemplateParsedJson(database: Database.Database): void {
+	// Use iterate() instead of all() to avoid loading full tables into memory
 	let hasRows = false;
 	const select = database.prepare(
 		'SELECT id, parsed_json FROM templates WHERE parsed_json_encrypted IS NULL'
@@ -124,7 +141,7 @@ export function backfillTemplateParsedJson(database: Database.Database): void {
 	const update = database.prepare(
 		'UPDATE templates SET parsed_json_encrypted = ?, parsed_json = ? WHERE id = ?'
 	);
-	for (const row of select.iterate()) {
+	for (const row of select.iterate() as Iterable<{ id: number; parsed_json: string }>) {
 		hasRows = true;
 		const encrypted = encrypt(row.parsed_json);
 		update.run(Buffer.from(encrypted, 'utf8'), EMPTY_TEXT_PLACEHOLDER, row.id);
@@ -132,24 +149,34 @@ export function backfillTemplateParsedJson(database: Database.Database): void {
 	if (!hasRows) return;
 }
 export function backfillTemplatePresetParsedJson(database: Database.Database): void {
-	const rows = database.prepare(
+	// Use iterate() instead of all() to avoid loading full tables into memory
+	let hasRows = false;
+	const select = database.prepare(
 		'SELECT id, parsed_json FROM template_presets WHERE parsed_json_encrypted IS NULL'
-	).all() as Array<{ id: number; parsed_json: string }>;
-	if (rows.length === 0) return;
+	);
 	const update = database.prepare(
 		'UPDATE template_presets SET parsed_json_encrypted = ?, parsed_json = ? WHERE id = ?'
 	);
-	for (const row of rows) {
+	for (const row of select.iterate() as Iterable<{ id: number; parsed_json: string }>) {
+		hasRows = true;
 		const encrypted = encrypt(row.parsed_json);
 		update.run(Buffer.from(encrypted, 'utf8'), EMPTY_TEXT_PLACEHOLDER, row.id);
 	}
+	if (!hasRows) return;
 }
 export function backfillLocationsEncryptedData(database: Database.Database): void {
-	const rows = database.prepare(
+	// Use iterate() instead of all() to avoid loading full tables into memory
+	let hasRows = false;
+	const select = database.prepare(
 		'SELECT id, name, lat, lng, address, name_encrypted, lat_encrypted, lng_encrypted,' +
 		' address_encrypted FROM locations WHERE name_encrypted IS NULL OR lat_encrypted IS NULL OR' +
 		' lng_encrypted IS NULL OR (address IS NOT NULL AND address_encrypted IS NULL)'
-	).all() as Array<{
+	);
+	const update = database.prepare(
+		'UPDATE locations SET name = ?, lat = ?, lng = ?, address = ?, name_encrypted = ?,' +
+		' lat_encrypted = ?, lng_encrypted = ?, address_encrypted = ? WHERE id = ?'
+	);
+	for (const row of select.iterate() as Iterable<{
 		id: number;
 		name: string;
 		lat: number;
@@ -159,13 +186,8 @@ export function backfillLocationsEncryptedData(database: Database.Database): voi
 		lat_encrypted: Buffer | null;
 		lng_encrypted: Buffer | null;
 		address_encrypted: Buffer | null;
-	}>;
-	if (rows.length === 0) return;
-	const update = database.prepare(
-		'UPDATE locations SET name = ?, lat = ?, lng = ?, address = ?, name_encrypted = ?,' +
-		' lat_encrypted = ?, lng_encrypted = ?, address_encrypted = ? WHERE id = ?'
-	);
-	for (const row of rows) {
+	}>) {
+		hasRows = true;
 		const nameEncrypted = row.name_encrypted ?? encryptOptionalString(row.name);
 		const latEncrypted = row.lat_encrypted ?? encryptOptionalNumber(row.lat);
 		const lngEncrypted = row.lng_encrypted ?? encryptOptionalNumber(row.lng);
@@ -182,43 +204,50 @@ export function backfillLocationsEncryptedData(database: Database.Database): voi
 			row.id
 		);
 	}
+	if (!hasRows) return;
 }
 export function backfillEntryCapturedCoordinates(database: Database.Database): void {
-	const rows = database.prepare(
+	// Use iterate() instead of all() to avoid loading full tables into memory
+	let hasRows = false;
+	const select = database.prepare(
 		'SELECT id, captured_lat, captured_lng, captured_lat_encrypted, captured_lng_encrypted' +
 		' FROM entries WHERE captured_lat_encrypted IS NULL OR captured_lng_encrypted IS NULL'
-	).all() as Array<{
+	);
+	const update = database.prepare(
+		'UPDATE entries SET captured_lat = ?, captured_lng = ?, captured_lat_encrypted = ?,' +
+		' captured_lng_encrypted = ? WHERE id = ?'
+	);
+	for (const row of select.iterate() as Iterable<{
 		id: number;
 		captured_lat: number | null;
 		captured_lng: number | null;
 		captured_lat_encrypted: Buffer | null;
 		captured_lng_encrypted: Buffer | null;
-	}>;
-	if (rows.length === 0) return;
-	const update = database.prepare(
-		'UPDATE entries SET captured_lat = ?, captured_lng = ?, captured_lat_encrypted = ?,' +
-		' captured_lng_encrypted = ? WHERE id = ?'
-	);
-	for (const row of rows) {
+	}>) {
+		hasRows = true;
 		const latEncrypted = row.captured_lat_encrypted ?? encryptOptionalNumber(row.captured_lat);
 		const lngEncrypted = row.captured_lng_encrypted ?? encryptOptionalNumber(row.captured_lng);
 		update.run(null, null, latEncrypted, lngEncrypted, row.id);
 	}
+	if (!hasRows) return;
 }
 export function backfillEntryLocationIdEncryption(database: Database.Database): void {
-	const rows = database.prepare(
+	// Use iterate() instead of all() to avoid loading full tables into memory
+	let hasRows = false;
+	const select = database.prepare(
 		'SELECT id, location_id FROM entries WHERE location_id IS NOT NULL' +
 		' AND location_id_encrypted IS NULL'
-	).all() as Array<{ id: number; location_id: number }>;
-	if (rows.length === 0) return;
+	);
 	const migrate = database.transaction(() => {
 		const update = database.prepare(
 			'UPDATE entries SET location_id = NULL, location_id_encrypted = ? WHERE id = ?'
 		);
-		for (const row of rows) {
+		for (const row of select.iterate() as Iterable<{ id: number; location_id: number }>) {
+			hasRows = true;
 			const encrypted = encryptOptionalNumber(row.location_id);
 			update.run(encrypted, row.id);
 		}
 	});
 	migrate();
+	if (!hasRows) return;
 }
