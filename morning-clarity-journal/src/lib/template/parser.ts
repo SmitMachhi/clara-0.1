@@ -4,6 +4,10 @@ const MAX_TEMPLATE_BYTES = 20 * 1024;
 const MAX_TEMPLATE_LINES = 200;
 const textEncoder = new TextEncoder();
 
+const HP_REGEX = /<hp([^>]*)>([\s\S]*?)<\/hp>/gi;
+const MP_REGEX = /<mp([^>]*)>([\s\S]*?)<\/mp>/gi;
+const TAG_REGEX = /<\/?([a-zA-Z]+)([^>]*)>/g;
+
 function getTemplateSize(sourceText: string): number {
 	return textEncoder.encode(sourceText).length;
 }
@@ -38,6 +42,7 @@ export function parseTemplateSource(
 		return { parsed: emptyParsed, errors: ['Template exceeds 200 lines'] };
 	}
 
+	// Pre-compute line start positions for O(log n) line lookups
 	const lineStarts = [0];
 	for (let i = 0; i < sourceText.length; i += 1) {
 		if (sourceText[i] === '\n') {
@@ -45,6 +50,17 @@ export function parseTemplateSource(
 		}
 	}
 
+	/**
+	 * Convert a character index to a line number using binary search.
+	 *
+	 * Binary search on lineStarts array gives O(log n) lookup.
+	 * While templates are typically small (<200 lines), this approach
+	 * is correct and efficient enough. A simpler linear search would
+	 * also be acceptable at this scale.
+	 *
+	 * @param index - Character position in the source text
+	 * @returns 1-based line number
+	 */
 	function getLineNumber(index: number): number {
 		let low = 0;
 		let high = lineStarts.length - 1;
@@ -71,9 +87,6 @@ export function parseTemplateSource(
 	const fieldIds: string[] = [];
 	let questionIndex = 0;
 	let fieldIndex = 0;
-	const hpRegex = /<hp([^>]*)>([\s\S]*?)<\/hp>/gi;
-	const mpRegex = /<mp([^>]*)>([\s\S]*?)<\/mp>/gi;
-	const tagRegex = /<\/?([a-zA-Z]+)([^>]*)>/g;
 	let lastIndex = 0;
 	let hpMatch: RegExpExecArray | null;
 
@@ -96,7 +109,8 @@ export function parseTemplateSource(
 		}
 	}
 
-	while ((hpMatch = hpRegex.exec(sourceText)) !== null) {
+	HP_REGEX.lastIndex = 0;
+	while ((hpMatch = HP_REGEX.exec(sourceText)) !== null) {
 		const blockIndex = hpMatch.index;
 		handleStraySegment(sourceText.slice(lastIndex, blockIndex), lastIndex);
 
@@ -105,22 +119,22 @@ export function parseTemplateSource(
 		const hpContent = hpMatch[2];
 		const hpContentStart = blockIndex + hpMatch[0].indexOf(hpContent);
 
-		mpRegex.lastIndex = 0;
-		const hpText = hpContent.replace(mpRegex, '').trim();
+		MP_REGEX.lastIndex = 0;
+		const hpText = hpContent.replace(MP_REGEX, '').trim();
 		if (!hpText) {
 			errors.push(`Empty tag content on line ${hpLine}`);
 		}
 
-		mpRegex.lastIndex = 0;
-		const invalidMpTag = hpContent.replace(mpRegex, '');
+		MP_REGEX.lastIndex = 0;
+		const invalidMpTag = hpContent.replace(MP_REGEX, '');
 		const strayMpMatch = invalidMpTag.match(/<\/?mp\b/i);
 		if (strayMpMatch?.index !== undefined) {
 			reportUnknownTag(hpContentStart + strayMpMatch.index);
 		}
 
-		tagRegex.lastIndex = 0;
+		TAG_REGEX.lastIndex = 0;
 		let tagMatch: RegExpExecArray | null;
-		while ((tagMatch = tagRegex.exec(hpContent)) !== null) {
+		while ((tagMatch = TAG_REGEX.exec(hpContent)) !== null) {
 			const tagName = tagMatch[1].toLowerCase();
 			if (tagName !== 'mp') {
 				reportUnknownTag(hpContentStart + tagMatch.index);
@@ -147,9 +161,9 @@ export function parseTemplateSource(
 			fieldIds.push(hpFieldId);
 		}
 
-		mpRegex.lastIndex = 0;
+		MP_REGEX.lastIndex = 0;
 		let mpMatch: RegExpExecArray | null;
-		while ((mpMatch = mpRegex.exec(hpContent)) !== null) {
+		while ((mpMatch = MP_REGEX.exec(hpContent)) !== null) {
 			const mpIndex = hpContentStart + mpMatch.index;
 			const mpLine = getLineNumber(mpIndex);
 			const mpPlaceholder = parseLabelAttribute(mpMatch[1], mpLine, errors);
@@ -172,7 +186,7 @@ export function parseTemplateSource(
 		}
 
 		questions.push(question);
-		lastIndex = hpRegex.lastIndex;
+		lastIndex = HP_REGEX.lastIndex;
 	}
 
 	handleStraySegment(sourceText.slice(lastIndex), lastIndex);

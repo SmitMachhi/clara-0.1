@@ -924,3 +924,10 @@ Document any measurements in the Implementation Log.
 
 (append a short paragraph per completed step; include the step number, a concise description of changes, and `npx svelte-check --threshold error` result)
 
+Step 1: Added a 5-minute TTL cache for locations with explicit invalidation on create/delete, and updated getLocations to reuse cached decrypt/sort results when valid. `npx svelte-check --threshold error` found 0 errors and 0 warnings.
+Step 2: Added a parsed quotes cache keyed by source hash, invalidated on quote source updates, and reused cached quotes when unchanged. `npx svelte-check --threshold error` found 0 errors and 0 warnings.
+Step 3: Memoized getYearDates with a small LRU-style cache (size 3) and returned copies to avoid mutation, reducing repeated date generation. `npx svelte-check --threshold error` found 0 errors and 0 warnings.
+Step 4: Consolidated rate-limit cleanup/count/min timestamp into a transactional delete + single stats query, reducing per-request queries while preserving retry-after logic. `npx svelte-check --threshold error` found 0 errors and 0 warnings.
+Step 5: Batched audit log cleanup to every 50 writes and delete in batches, reducing per-write count/delete overhead. `npx svelte-check --threshold error` found 0 errors and 0 warnings.
+Step 6: Updated locationNameExists to use cached getLocations with normalized string comparison and optional excludeId. `npx svelte-check --threshold error` found 0 errors and 0 warnings.
+Step 7: Ensured module-level template regex state is reset before parsing by resetting HP regex lastIndex on each parse run. `npx svelte-check --threshold error` found 0 errors and 0 warnings.

@@ -853,6 +853,11 @@ button:disabled {
 	left: calc(20px + var(--safe-left));
 }
 
+.entry-page .nav-btn.back {
+	left: auto;
+	right: calc(20px + var(--safe-right));
+}
+
 /* ==========================================================================
    SIDEBAR TOGGLE BUTTON
    ========================================================================== */
@@ -1457,11 +1462,13 @@ button.recent-item:hover {
 	background: var(--color-blue-bg);
 	border-radius: 4px;
 	font-size: 0.75rem;
+	flex-wrap: wrap;
 }
 
 .captured-label {
 	color: var(--accent);
 	font-family: var(--font-mono);
+	overflow-wrap: anywhere;
 }
 
 .captured-clear {
@@ -2283,6 +2290,12 @@ button.recent-item:hover {
 	flex: 1;
 }
 
+@media (hover: none) {
+	.sg-delete-btn {
+		opacity: 1;
+	}
+}
+
 /* Responsive */
 @media (max-width: 600px) {
 	.settings-modal-extended {
@@ -2575,6 +2588,11 @@ button.recent-item:hover {
 		height: 40px;
 	}
 
+	.entry-page .nav-btn.back {
+		left: auto;
+		right: calc(8px + var(--safe-right));
+	}
+
 	.sidebar-toggle {
 		top: calc(8px + var(--safe-top));
 		right: calc(8px + var(--safe-right));
@@ -2605,6 +2623,10 @@ button.recent-item:hover {
 		min-height: 44px;
 	}
 
+	.sr-subtitle {
+		white-space: normal;
+	}
+
 	.sg-manual-grid {
 		grid-template-columns: 1fr;
 	}
@@ -2613,5 +2635,24 @@ button.recent-item:hover {
 	.sg-preset-actions .sg-btn {
 		width: 100%;
 		justify-content: center;
+	}
+
+	.tracker-day {
+		width: 11px;
+		height: 11px;
+	}
+
+	.recent-item {
+		min-height: 44px;
+	}
+
+	.gps-capture-btn {
+		width: 40px;
+		height: 40px;
+	}
+
+	.sg-input,
+	.sg-ide-textarea {
+		font-size: 1rem;
 	}
 }

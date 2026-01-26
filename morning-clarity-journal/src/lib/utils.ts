@@ -69,10 +69,16 @@ export function isPastCutoff(date: Date = new Date()): boolean {
 	return date.getHours() >= TIME.CUTOFF_HOUR;
 }
 
+const yearDatesCache = new Map<number, string[]>();
+const MAX_YEAR_CACHE_SIZE = 3;
+
 /**
  * Get all dates in a year
  */
 export function getYearDates(year: number): string[] {
+	if (yearDatesCache.has(year)) {
+		return [...yearDatesCache.get(year)!];
+	}
 	const dates: string[] = [];
 	const start = new Date(year, 0, 1);
 	const end = new Date(year, 11, 31);
@@ -82,8 +88,16 @@ export function getYearDates(year: number): string[] {
 		dates.push(formatDateISO(current));
 		current.setDate(current.getDate() + 1);
 	}
-	
-	return dates;
+
+	if (yearDatesCache.size >= MAX_YEAR_CACHE_SIZE) {
+		const oldestKey = yearDatesCache.keys().next().value;
+		if (oldestKey !== undefined) {
+			yearDatesCache.delete(oldestKey);
+		}
+	}
+	yearDatesCache.set(year, dates);
+
+	return [...dates];
 }
 
 /**

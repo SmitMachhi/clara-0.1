@@ -80,7 +80,7 @@
 		expandedQuestions = newSet;
 	}
 </script>
-<div class="notion-page">
+<div class="notion-page entry-page">
 	<div class="main-area">
 		<main class="content">
 			{#if loading}

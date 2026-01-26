@@ -23,21 +23,21 @@ export function checkRateLimit(key: string, identifier: string): { allowed: bool
 
 	const database = getDb();
 
-	// Clean up old entries
-	database.prepare('DELETE FROM api_rate_limits WHERE timestamp < ?').run(windowStart);
+	const stats = database.transaction(() => {
+		database.prepare('DELETE FROM api_rate_limits WHERE timestamp < ?').run(windowStart);
+		return database.prepare(
+			`SELECT
+				COUNT(*) as count,
+				MIN(timestamp) as min_timestamp
+			FROM api_rate_limits
+			WHERE key = ? AND timestamp >= ?`
+		).get(fullKey, windowStart) as { count: number; min_timestamp: number | null };
+	})();
 
-	// Count requests in current window
-	const countResult = database.prepare(
-		'SELECT COUNT(*) as count FROM api_rate_limits WHERE key = ? AND timestamp >= ?'
-	).get(fullKey, windowStart) as { count: number };
-
-	if (countResult.count >= config.maxRequests) {
-		// Find oldest entry to calculate retry time
-		const oldest = database.prepare(
-			'SELECT MIN(timestamp) as ts FROM api_rate_limits WHERE key = ? AND timestamp >= ?'
-		).get(fullKey, windowStart) as { ts: number };
-
-		const retryAfter = Math.ceil((oldest.ts + config.windowMs - now) / 1000);
+	if (stats.count >= config.maxRequests) {
+		const retryAfter = stats.min_timestamp
+			? Math.ceil((stats.min_timestamp + config.windowMs - now) / 1000)
+			: Math.ceil(config.windowMs / 1000);
 		return { allowed: false, retryAfter: Math.max(1, retryAfter) };
 	}
 

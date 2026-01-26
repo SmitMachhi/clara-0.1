@@ -4,6 +4,11 @@ import { decryptOptionalNumber, encryptOptionalNumber } from './crypto-helpers.j
 import { parseQuoteSource, serializeQuoteSource } from '$lib/quote-parser.js';
 import type { DailyQuote, QuoteSource } from './types.js';
 
+interface ParsedQuotesCache {
+	quotes: string[] | null;
+	sourceHash: string | null;
+}
+
 interface DailyQuoteRow {
 	date: string;
 	quote_id_encrypted: Buffer | null;
@@ -25,6 +30,15 @@ interface LegacyQuoteRow {
 }
 
 const SOURCE_ID = 1;
+const parsedQuotesCache: ParsedQuotesCache = {
+	quotes: null,
+	sourceHash: null
+};
+
+export function invalidateParsedQuotesCache(): void {
+	parsedQuotesCache.quotes = null;
+	parsedQuotesCache.sourceHash = null;
+}
 
 function mapDailyQuoteRow(row: DailyQuoteRow): DailyQuote {
 	return {
@@ -101,6 +115,7 @@ export function setQuoteSource(sourceText: string): void {
 			source_text_encrypted = excluded.source_text_encrypted,
 			updated_at = datetime('now')
 	`).run(SOURCE_ID, encrypted);
+	invalidateParsedQuotesCache();
 }
 
 export function getParsedQuotes(): { quotes: string[]; errors: string[] } {
@@ -108,7 +123,16 @@ export function getParsedQuotes(): { quotes: string[]; errors: string[] } {
 	if (!source) {
 		return { quotes: [], errors: [] };
 	}
-	return parseQuoteSource(source.sourceText);
+	const sourceHash = `${source.sourceText.substring(0, 100)}_${source.sourceText.length}`;
+	if (parsedQuotesCache.quotes !== null && parsedQuotesCache.sourceHash === sourceHash) {
+		return { quotes: parsedQuotesCache.quotes, errors: [] };
+	}
+	const result = parseQuoteSource(source.sourceText);
+	if (result.errors.length === 0) {
+		parsedQuotesCache.quotes = result.quotes;
+		parsedQuotesCache.sourceHash = sourceHash;
+	}
+	return result;
 }
 
 export function getOrCreateDailyQuote(date: string): DailyQuote | null {

@@ -1,7 +1,14 @@
 import { decrypt, encrypt } from '$lib/server/crypto.js';
-import { parseTemplateSource, serializeDefaultTemplate } from '../template.js';
 import type { TemplateModel } from '../template.js';
 import { EMPTY_TEXT_PLACEHOLDER, getDb } from './connection.js';
+import {
+	backfillEntryTemplateIds as backfillEntryTemplateIdsWithDb,
+	ensureActiveTemplate as ensureActiveTemplateWithDb,
+	ensureTemplatePresetSeed as ensureTemplatePresetSeedWithDb,
+	getActiveTemplate as getActiveTemplateWithDb,
+	getTemplateById as getTemplateByIdWithDb,
+	setActiveTemplate as setActiveTemplateWithDb
+} from './template-utils.js';
 import type { TemplatePresetSummary } from './types.js';
 
 export function createTemplateVersion(sourceText: string, parsed: TemplateModel): number {
@@ -94,98 +101,28 @@ export function deleteTemplatePreset(id: number): boolean {
 }
 
 export function setActiveTemplate(id: number): void {
-	const database = getDb();
-	database.prepare(`
-		INSERT INTO config (key, value)
-		VALUES ('active_template_id', ?)
-		ON CONFLICT(key) DO UPDATE SET value = excluded.value
-	`).run(id.toString());
+	setActiveTemplateWithDb(getDb(), id);
 }
 
 export function getTemplateById(
 	id: number
 ): { id: number; sourceText: string; parsed: TemplateModel } | null {
-	const database = getDb();
-	const row = database.prepare(`
-		SELECT id, source_text_encrypted, parsed_json_encrypted
-		FROM templates
-		WHERE id = ?
-	`).get(id) as {
-		id: number;
-		source_text_encrypted: Buffer;
-		parsed_json_encrypted: Buffer;
-	} | undefined;
-
-	if (!row) return null;
-
-	const decrypted = decrypt(row.source_text_encrypted.toString('utf8'));
-	const parsedJson = decrypt(row.parsed_json_encrypted.toString('utf8'));
-	return {
-		id: row.id,
-		sourceText: decrypted,
-		parsed: JSON.parse(parsedJson) as TemplateModel
-	};
+	return getTemplateByIdWithDb(getDb(), id);
 }
 
 export function getActiveTemplate():
 	{ id: number; sourceText: string; parsed: TemplateModel } | null {
-	const database = getDb();
-	const row = database.prepare(`
-		SELECT value
-		FROM config
-		WHERE key = 'active_template_id'
-	`).get() as { value: string } | undefined;
-
-	if (!row?.value) return null;
-	const templateId = Number(row.value);
-	if (!Number.isFinite(templateId)) return null;
-	return getTemplateById(templateId);
+	return getActiveTemplateWithDb(getDb());
 }
 
 export function ensureActiveTemplate(): number {
-	const database = getDb();
-	const existing = getActiveTemplate();
-	if (existing) return existing.id;
-
-	const templateCount = database.prepare(
-		'SELECT COUNT(1) as count FROM templates'
-	).get() as { count: number };
-	if (templateCount.count > 0) {
-		const row = database.prepare(
-			'SELECT id FROM templates ORDER BY id ASC LIMIT 1'
-		).get() as { id: number };
-		setActiveTemplate(row.id);
-		return row.id;
-	}
-
-	const sourceText = serializeDefaultTemplate();
-	const parseResult = parseTemplateSource(sourceText);
-	if (parseResult.errors.length > 0) {
-		throw new Error('Default template failed validation');
-	}
-	const parsed = parseResult.parsed;
-	const id = createTemplateVersion(sourceText, parsed);
-	setActiveTemplate(id);
-	return id;
+	return ensureActiveTemplateWithDb(getDb());
 }
 
 export function backfillEntryTemplateIds(activeTemplateId: number): void {
-	const database = getDb();
-	database.prepare(`
-		UPDATE entries
-		SET template_id = ?
-		WHERE template_id IS NULL
-	`).run(activeTemplateId);
+	backfillEntryTemplateIdsWithDb(getDb(), activeTemplateId);
 }
 
 export function ensureTemplatePresetSeed(): void {
-	const database = getDb();
-	const count = database.prepare(
-		'SELECT COUNT(1) as count FROM template_presets'
-	).get() as { count: number };
-	if (count.count > 0) return;
-
-	const active = getActiveTemplate();
-	if (!active) return;
-	createTemplatePreset('Default Template', active.sourceText, active.parsed);
+	ensureTemplatePresetSeedWithDb(getDb());
 }

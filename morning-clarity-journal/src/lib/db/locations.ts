@@ -9,12 +9,35 @@ import type { Location } from './types.js';
 import { calculateDistance } from '../location-utils.js';
 
 const LOCATION_MATCH_TOLERANCE_METERS = 500;
+const LOCATION_CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface LocationCache {
+	data: Location[] | null;
+	timestamp: number;
+}
+
+const locationCache: LocationCache = {
+	data: null,
+	timestamp: 0
+};
+
+export function invalidateLocationCache(): void {
+	locationCache.data = null;
+	locationCache.timestamp = 0;
+}
+
+function isCacheValid(): boolean {
+	return locationCache.data !== null && Date.now() - locationCache.timestamp < LOCATION_CACHE_TTL_MS;
+}
 
 function normalizeLocationName(value: string): string {
 	return value.trim().toLowerCase();
 }
 
 export function getLocations(): Location[] {
+	if (isCacheValid()) {
+		return locationCache.data!;
+	}
 	const database = getDb();
 	const rows = database.prepare(
 		'SELECT id, name_encrypted, lat_encrypted, lng_encrypted, address_encrypted FROM locations'
@@ -26,7 +49,7 @@ export function getLocations(): Location[] {
 		address_encrypted: Buffer | null;
 	}>;
 
-	return rows
+	const locations = rows
 		.map(row => ({
 			id: row.id,
 			name: decryptOptionalString(row.name_encrypted) ?? EMPTY_TEXT_PLACEHOLDER,
@@ -35,6 +58,11 @@ export function getLocations(): Location[] {
 			address: decryptOptionalString(row.address_encrypted)
 		}))
 		.sort((a, b) => a.name.localeCompare(b.name));
+
+	locationCache.data = locations;
+	locationCache.timestamp = Date.now();
+
+	return locations;
 }
 
 export function findMatchingLocation(lat: number, lng: number): Location | null {
@@ -66,12 +94,16 @@ export function addLocation(name: string, lat: number, lng: number, address?: st
 		lngEncrypted,
 		addressEncrypted
 	);
+	invalidateLocationCache();
 	return result.lastInsertRowid as number;
 }
 
 export function deleteLocation(id: number): boolean {
 	const database = getDb();
 	const result = database.prepare('DELETE FROM locations WHERE id = ?').run(id);
+	if (result.changes > 0) {
+		invalidateLocationCache();
+	}
 	return result.changes > 0;
 }
 
@@ -99,15 +131,11 @@ export function getLocationById(id: number): Location | null {
 	};
 }
 
-export function locationNameExists(name: string): boolean {
-	const database = getDb();
-	const rows = database.prepare(
-		'SELECT name_encrypted FROM locations'
-	).all() as Array<{ name_encrypted: Buffer | null }>;
+export function locationNameExists(name: string, excludeId?: number): boolean {
+	const locations = getLocations();
 	const normalized = normalizeLocationName(name);
-	return rows.some(row => {
-		const decrypted = decryptOptionalString(row.name_encrypted);
-		if (!decrypted) return false;
-		return normalizeLocationName(decrypted) === normalized;
+	return locations.some(location => {
+		if (excludeId !== undefined && location.id === excludeId) return false;
+		return normalizeLocationName(location.name) === normalized;
 	});
 }

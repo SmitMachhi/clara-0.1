@@ -8,6 +8,10 @@ import {
 } from './crypto-helpers.js';
 import type { Entry, EntryWithData } from './types.js';
 
+/**
+ * Build a map of location IDs to location names for efficient lookup.
+ * Used when hydrating entries with location names.
+ */
 function buildLocationNameMap(): Map<number, string> {
 	const locations = getLocations();
 	const map = new Map<number, string>();

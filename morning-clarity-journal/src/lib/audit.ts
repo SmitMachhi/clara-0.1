@@ -21,6 +21,9 @@ interface AuditLogEntry {
 
 const MAX_AUDIT_LOG_ENTRIES = 10000;
 const CLEANUP_THRESHOLD = 11000;
+const CLEANUP_FREQUENCY = 50;
+const CLEANUP_BATCH_SIZE = 500;
+let auditWriteCounter = 0;
 
 export function logAuditEvent(entry: AuditLogEntry): void {
 	const database = getDb();
@@ -37,14 +40,21 @@ export function logAuditEvent(entry: AuditLogEntry): void {
 		VALUES (?, ?, ?, ?, ?)
 	`).run(now, entry.eventType, entry.ipAddress || null, sanitizedSessionId, safeDetails);
 
-	// Cleanup old entries periodically
-	const count = database.prepare('SELECT COUNT(*) as count FROM audit_log').get() as { count: number };
-	if (count.count > CLEANUP_THRESHOLD) {
-		database.prepare(`
-			DELETE FROM audit_log WHERE id IN (
-				SELECT id FROM audit_log ORDER BY timestamp ASC LIMIT ?
-			)
-		`).run(count.count - MAX_AUDIT_LOG_ENTRIES);
+	auditWriteCounter += 1;
+	if (auditWriteCounter >= CLEANUP_FREQUENCY) {
+		auditWriteCounter = 0;
+		const count = database.prepare('SELECT COUNT(*) as count FROM audit_log').get() as {
+			count: number
+		};
+		if (count.count > CLEANUP_THRESHOLD) {
+			const excess = Math.max(0, count.count - MAX_AUDIT_LOG_ENTRIES);
+			const deleteCount = Math.max(excess, CLEANUP_BATCH_SIZE);
+			database.prepare(`
+				DELETE FROM audit_log WHERE id IN (
+					SELECT id FROM audit_log ORDER BY timestamp ASC LIMIT ?
+				)
+			`).run(deleteCount);
+		}
 	}
 }
 
