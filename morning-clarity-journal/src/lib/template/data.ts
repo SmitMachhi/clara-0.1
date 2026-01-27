@@ -120,7 +120,12 @@ const journalTemplate: TemplateQuestion[] = [
 export function serializeDefaultTemplate(): string {
 	const lines: string[] = [];
 	for (const question of journalTemplate) {
-		lines.push(`<hp>${question.question}`);
+		const hasHpField = question.fields.some(f => f.type === 'hp');
+		if (hasHpField) {
+			lines.push(`<hp label="">${question.question}`);
+		} else {
+			lines.push(`<hp>${question.question}`);
+		}
 		for (const field of question.fields) {
 			if (!field.label) continue;
 			lines.push(`<mp>${field.label}</mp>`);

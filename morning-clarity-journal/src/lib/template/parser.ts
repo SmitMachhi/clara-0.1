@@ -18,7 +18,7 @@ function parseLabelAttribute(
 	errors: string[]
 ): string | null {
 	const trimmed = attributeText.trim();
-	if (!trimmed) return '';
+	if (!trimmed) return null;
 	const match = trimmed.match(/^label="([^"]*)"$/);
 	if (!match) {
 		errors.push(`Invalid attribute on line ${lineNumber}`);
