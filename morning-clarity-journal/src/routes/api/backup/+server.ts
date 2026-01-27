@@ -1,6 +1,7 @@
 import type { RequestHandler } from './$types';
+import { timingSafeEqual } from 'crypto';
 import { createBackup, getBackups, decryptBackup } from '$lib/db.js';
-import { readFileSync } from 'fs';
+import fs from 'fs';
 import { Readable } from 'stream';
 import path from 'path';
 import { successResponse, errorResponse, notFoundResponse, noStoreHeaders } from '$lib/api-helpers.js';
@@ -62,13 +63,8 @@ export const GET: RequestHandler = async ({ url }) => {
 				const decryptedStream = decryptBackup(backup.path);
 				responseStream = Readable.toWeb(decryptedStream) as ReadableStream<Uint8Array>;
 			} else {
-				responseStream = new ReadableStream({
-					async start(controller) {
-						const fileBuffer = readFileSync(backup.path);
-						controller.enqueue(new Uint8Array(fileBuffer));
-						controller.close();
-					}
-				});
+				const rawStream = fs.createReadStream(backup.path);
+				responseStream = Readable.toWeb(rawStream) as ReadableStream<Uint8Array>;
 			}
 
 			return new Response(responseStream, {
@@ -86,7 +82,11 @@ export const GET: RequestHandler = async ({ url }) => {
 	return errorResponse('Invalid action');
 };
 
-export const POST: RequestHandler = async () => {
+export const POST: RequestHandler = async ({ request }) => {
+	const tokenHeader = request.headers.get('x-backup-token');
+	if (tokenHeader && !isValidBackupToken(tokenHeader)) {
+		return errorResponse('Invalid backup token', 403, noStoreHeaders());
+	}
 	try {
 		const backupPath = await createBackup();
 		const backups = getBackups();
@@ -109,3 +109,12 @@ export const POST: RequestHandler = async () => {
 		return errorResponse('Failed to create backup', 500);
 	}
 };
+
+function isValidBackupToken(provided: string): boolean {
+	const expected = process.env.JOURNAL_BACKUP_TOKEN;
+	if (!expected) return false;
+	const providedBuffer = Buffer.from(provided);
+	const expectedBuffer = Buffer.from(expected);
+	if (providedBuffer.length !== expectedBuffer.length) return false;
+	return timingSafeEqual(providedBuffer, expectedBuffer);
+}

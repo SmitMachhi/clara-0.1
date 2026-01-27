@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { timingSafeEqual } from 'crypto';
 import type { Handle } from '@sveltejs/kit';
 import { verifySessionToken, SESSION_REFRESH_THRESHOLD_MS, refreshSessionToken, validateConfiguredPassphrase } from '$lib/auth.js';
 import { getActiveSession, isSessionNonceBlacklisted, updateSessionExpiration } from '$lib/db.js';
@@ -12,6 +13,11 @@ try {
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
+	const backupTokenHeader = event.request.headers.get('x-backup-token');
+	const expectedBackupToken = process.env.JOURNAL_BACKUP_TOKEN;
+	const isBackupPost = event.url.pathname === '/api/backup' && event.request.method === 'POST';
+	const hasValidBackupToken = isBackupPost && isValidBackupToken(backupTokenHeader, expectedBackupToken);
+
 	const isProd = process.env.NODE_ENV === 'production';
 	const forwardedProto = event.request.headers.get('x-forwarded-proto');
 	if (isProd && forwardedProto && forwardedProto !== 'https') {
@@ -43,7 +49,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		}
 	}
 
-	if (event.url.pathname.startsWith('/api/')) {
+	if (event.url.pathname.startsWith('/api/') && !hasValidBackupToken) {
 		const excludedRoutes = ['/api/auth', '/api/session', '/api/auth/logout'];
 		
 		if (!excludedRoutes.includes(event.url.pathname)) {
@@ -84,7 +90,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	// Rate limiting for authenticated API requests
-	if (event.url.pathname.startsWith('/api/')) {
+	if (event.url.pathname.startsWith('/api/') && !hasValidBackupToken) {
 		const excludedFromRateLimit = ['/api/auth', '/api/session'];
 
 		if (!excludedFromRateLimit.includes(event.url.pathname)) {
@@ -138,3 +144,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 	return response;
 };
+
+function isValidBackupToken(provided: string | null, expected: string | undefined): boolean {
+	if (!provided || !expected) return false;
+	const providedBuffer = Buffer.from(provided);
+	const expectedBuffer = Buffer.from(expected);
+	if (providedBuffer.length !== expectedBuffer.length) return false;
+	return timingSafeEqual(providedBuffer, expectedBuffer);
+}

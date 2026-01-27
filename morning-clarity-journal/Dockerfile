@@ -27,6 +27,7 @@ RUN npm ci --omit=dev
 # Copy built application
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/package.json ./
+COPY --from=builder /app/scripts ./scripts
 
 # Create data directory for SQLite
 RUN mkdir -p /data

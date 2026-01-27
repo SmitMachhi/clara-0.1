@@ -55,6 +55,7 @@
 			.filter(field => field.type === 'hp')
 			.map(field => field.id);
 	});
+	const hpFieldIdSet = $derived.by(() => new Set(hpFieldIds));
 
 	let completedFieldsCount = $state(0);
 	let completedFields = $derived(completedFieldsCount);
@@ -67,13 +68,16 @@
 
 	function updateFieldValue(fieldId: string, nextValue: string): void {
 		const wasCompleted = !!formData[fieldId]?.trim();
+		formData[fieldId] = nextValue;
+		if (!hpFieldIdSet.has(fieldId)) {
+			return;
+		}
 		const isCompleted = !!nextValue.trim();
 		if (!wasCompleted && isCompleted) {
 			completedFieldsCount += 1;
 		} else if (wasCompleted && !isCompleted) {
 			completedFieldsCount = Math.max(0, completedFieldsCount - 1);
 		}
-		formData[fieldId] = nextValue;
 	}
 
 	onMount(() => {

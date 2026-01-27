@@ -2,7 +2,7 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypt
 import fs from 'fs';
 import path from 'path';
 import { pipeline } from 'stream/promises';
-import { Readable } from 'stream';
+import { PassThrough, Readable } from 'stream';
 import { DB_PATH, DATA_DIR, getDb } from './connection.js';
 
 const BACKUP_ENCRYPTION_ALGO = 'aes-256-gcm';
@@ -37,18 +37,21 @@ export async function createBackup(): Promise<string> {
 
 	const readStream = fs.createReadStream(DB_PATH);
 	const writeStream = fs.createWriteStream(tempPath);
+	try {
+		await pipeline(readStream, cipher, writeStream);
 
-	await pipeline(readStream, cipher, writeStream);
+		const authTag = cipher.getAuthTag();
 
-	const authTag = cipher.getAuthTag();
-
-	const finalWriteStream = fs.createWriteStream(backupPath);
-	finalWriteStream.write(iv);
-	finalWriteStream.write(authTag);
-	const encryptedStream = fs.createReadStream(tempPath);
-	await pipeline(encryptedStream, finalWriteStream);
-
-	fs.unlinkSync(tempPath);
+		const finalWriteStream = fs.createWriteStream(backupPath);
+		finalWriteStream.write(iv);
+		finalWriteStream.write(authTag);
+		const encryptedStream = fs.createReadStream(tempPath);
+		await pipeline(encryptedStream, finalWriteStream);
+	} finally {
+		if (fs.existsSync(tempPath)) {
+			fs.unlinkSync(tempPath);
+		}
+	}
 
 	const backups = getBackups();
 	const RETENTION_COUNT = 5;
@@ -118,29 +121,19 @@ export function decryptBackup(encryptedPath: string): Readable {
 		authTagStream.on('error', reject);
 	});
 
-	const encryptedStream = fs.createReadStream(encryptedPath, {
-		start: BACKUP_IV_LENGTH + BACKUP_AUTH_TAG_LENGTH
-	});
-
-	const passThrough = new Readable({
-		read() {}
-	});
+	const passThrough = new PassThrough();
 
 	Promise.all([iv, authTag]).then(([ivData, authTagData]) => {
 		const decipher = createDecipheriv(BACKUP_ENCRYPTION_ALGO, key, ivData);
 		decipher.setAuthTag(authTagData);
-
-		encryptedStream.on('data', (chunk: Buffer | string) => {
-			const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-			passThrough.push(decipher.update(buffer));
+		const encryptedStream = fs.createReadStream(encryptedPath, {
+			start: BACKUP_IV_LENGTH + BACKUP_AUTH_TAG_LENGTH
 		});
-		encryptedStream.on('end', () => {
-			passThrough.push(decipher.final());
-			passThrough.push(null);
+		pipeline(encryptedStream, decipher, passThrough).catch((err) => {
+			passThrough.destroy(err);
 		});
-		encryptedStream.on('error', (err) => passThrough.emit('error', err));
 	}).catch((err) => {
-		passThrough.emit('error', err);
+		passThrough.destroy(err);
 	});
 
 	return passThrough;

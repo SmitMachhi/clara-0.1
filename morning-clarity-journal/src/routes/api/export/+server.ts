@@ -48,6 +48,10 @@ export const GET: RequestHandler = async () => {
 		created_at: quote.created_at
 	}));
 
+	const entryIterator = iterateEntriesWithRawData()[Symbol.iterator]();
+	let started = false;
+	let firstEntry = true;
+
 	const stream = new ReadableStream({
 		start(controller) {
 			const write = (text: string) => controller.enqueue(encoder.encode(text));
@@ -79,44 +83,51 @@ export const GET: RequestHandler = async () => {
 			write(JSON.stringify(presets));
 
 			write(',\n  "entries": [');
+			started = true;
+		},
+		pull(controller) {
+			if (!started) return;
+			const write = (text: string) => controller.enqueue(encoder.encode(text));
+			const next = entryIterator.next();
 
-			let first = true;
-			for (const row of iterateEntriesWithRawData()) {
-				const locationId = decryptOptionalNumber(row.location_id_encrypted);
-				const locationName = locationId != null ? locationMap.get(locationId) : null;
-				const capturedLat = decryptOptionalNumber(row.captured_lat_encrypted);
-				const capturedLng = decryptOptionalNumber(row.captured_lng_encrypted);
-				const quoteText = decryptOptionalString(row.quote_text_encrypted);
-
-				let data = null;
-				try {
-					const decrypted = decrypt(row.encrypted_data.toString('utf8'));
-					data = JSON.parse(decrypted);
-				} catch {
-					data = null;
-				}
-
-				const entry = {
-					date: row.date,
-					timestamp: row.timestamp,
-					location_name: locationName ?? null,
-					captured_lat: capturedLat,
-					captured_lng: capturedLng,
-					quote_text: quoteText ?? null,
-					data
-				};
-
-				if (!first) {
-					write(',');
-				}
-				first = false;
-
-				write('\n    ');
-				write(JSON.stringify(entry));
+			if (next.done) {
+				write('\n  ]\n}');
+				controller.close();
+				return;
 			}
 
-			write('\n  ]\n}');
-			controller.close();
+			const row = next.value;
+			const locationId = decryptOptionalNumber(row.location_id_encrypted);
+			const locationName = locationId != null ? locationMap.get(locationId) : null;
+			const capturedLat = decryptOptionalNumber(row.captured_lat_encrypted);
+			const capturedLng = decryptOptionalNumber(row.captured_lng_encrypted);
+			const quoteText = decryptOptionalString(row.quote_text_encrypted);
+
+			let data = null;
+			try {
+				const decrypted = decrypt(row.encrypted_data.toString('utf8'));
+				data = JSON.parse(decrypted);
+			} catch {
+				data = null;
+			}
+
+			const entry = {
+				date: row.date,
+				timestamp: row.timestamp,
+				location_name: locationName ?? null,
+				captured_lat: capturedLat,
+				captured_lng: capturedLng,
+				quote_text: quoteText ?? null,
+				data
+			};
+
+			if (!firstEntry) {
+				write(',');
+			}
+			firstEntry = false;
+
+			write('\n    ');
+			write(JSON.stringify(entry));
 		}
 	});
 
