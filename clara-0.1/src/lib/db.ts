@@ -2,7 +2,7 @@
 // This file maintains backward compatibility with existing imports
 
 export * from './db/types.js';
-export { getDb, DATA_DIR, DB_PATH } from './db/connection.js';
+export { getDb, closeDb, DATA_DIR, DB_PATH } from './db/connection.js';
 export * from './db/crypto-helpers.js';
 export * from './db/locations.js';
 export * from './db/entries.js';

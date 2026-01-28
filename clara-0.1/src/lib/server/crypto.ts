@@ -1,19 +1,10 @@
 import { createCipheriv, createDecipheriv, randomBytes, createHash, pbkdf2Sync } from 'crypto';
 import { env } from '$env/dynamic/private';
+import { getDb } from '$lib/db/connection.js';
 
 const IV_LENGTH = 12; // 96 bits, recommended for GCM
 const PBKDF2_ITERATIONS = 100000;
 const PBKDF2_KEYLEN = 32;
-
-let cachedKey: Buffer | null = null;
-
-function getLegacyKey(): Buffer {
-	const secret = env.JOURNAL_ENCRYPTION_KEY;
-	if (!secret) {
-		throw new Error('JOURNAL_ENCRYPTION_KEY environment variable is not set');
-	}
-	return createHash('sha256').update(secret).digest();
-}
 
 function decryptWithKey(stored: string, key: Buffer): string {
 	const { iv, tag, data } = JSON.parse(stored);
@@ -38,17 +29,63 @@ function encryptWithKey(plaintext: string, key: Buffer): string {
 	});
 }
 
-function getKey(): Buffer {
-	if (cachedKey) return cachedKey;
+/**
+ * Derive encryption key from secret and salt using PBKDF2.
+ */
+function getKey(salt: Buffer): Buffer {
 	const secret = env.JOURNAL_ENCRYPTION_KEY;
 	if (!secret) {
 		throw new Error('JOURNAL_ENCRYPTION_KEY environment variable is not set');
 	}
-	// Deterministic salt from a fixed prefix + the secret itself.
-	// Ensures the same key is derived each run (required to decrypt existing data).
-	const salt = createHash('sha256').update('mcj-encryption-salt:' + secret, 'utf8').digest();
-	cachedKey = pbkdf2Sync(secret, salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, 'sha256');
-	return cachedKey;
+	return pbkdf2Sync(secret, salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, 'sha256');
+}
+
+/**
+ * Get or create the encryption salt from database.
+ * Salt is stored in config table as 'encryption_salt'.
+ */
+function getEncryptionSalt(): Buffer {
+	const database = getDb();
+	const row = database.prepare(
+		"SELECT value FROM config WHERE key = 'encryption_salt'"
+	).get() as { value: string } | undefined;
+
+	if (row?.value) {
+		return Buffer.from(row.value, 'hex');
+	}
+
+	// Generate new random salt
+	const newSalt = randomBytes(32);
+	database.prepare(`
+		INSERT INTO config (key, value)
+		VALUES ('encryption_salt', ?)
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value
+	`).run(newSalt.toString('hex'));
+
+	return newSalt;
+}
+
+/**
+ * Get the legacy deterministic salt for backward compatibility.
+ * Used to decrypt data encrypted before the salt fix.
+ */
+function getLegacySalt(): Buffer {
+	const secret = env.JOURNAL_ENCRYPTION_KEY;
+	if (!secret) {
+		throw new Error('JOURNAL_ENCRYPTION_KEY environment variable is not set');
+	}
+	return createHash('sha256').update('mcj-encryption-salt:' + secret, 'utf8').digest();
+}
+
+/**
+ * Get the legacy key for backward compatibility (pre-salt-fix data).
+ */
+function getLegacyKey(): Buffer {
+	const secret = env.JOURNAL_ENCRYPTION_KEY;
+	if (!secret) {
+		throw new Error('JOURNAL_ENCRYPTION_KEY environment variable is not set');
+	}
+	return createHash('sha256').update(secret).digest();
 }
 
 export function decryptWithLegacyKey(stored: string): string {
@@ -57,9 +94,21 @@ export function decryptWithLegacyKey(stored: string): string {
 }
 
 export function encrypt(plaintext: string): string {
-	return encryptWithKey(plaintext, getKey());
+	const salt = getEncryptionSalt();
+	const key = getKey(salt);
+	return encryptWithKey(plaintext, key);
 }
 
 export function decrypt(stored: string): string {
-	return decryptWithKey(stored, getKey());
+	// Try new salt-based key first
+	try {
+		const salt = getEncryptionSalt();
+		const key = getKey(salt);
+		return decryptWithKey(stored, key);
+	} catch {
+		// Fall back to legacy deterministic salt for backward compatibility
+		const legacySalt = getLegacySalt();
+		const legacyKey = getKey(legacySalt);
+		return decryptWithKey(stored, legacyKey);
+	}
 }

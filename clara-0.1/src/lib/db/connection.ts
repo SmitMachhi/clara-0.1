@@ -33,3 +33,14 @@ function getDbInternal(): Database.Database {
 export function getDb(): Database.Database {
 	return getDbInternal();
 }
+
+/**
+ * Close the database connection gracefully.
+ * Should be called on SIGTERM/SIGINT for clean shutdown.
+ */
+export function closeDb(): void {
+	if (db) {
+		db.close();
+		db = null;
+	}
+}

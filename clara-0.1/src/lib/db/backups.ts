@@ -3,11 +3,13 @@ import fs from 'fs';
 import path from 'path';
 import { pipeline } from 'stream/promises';
 import { PassThrough, Readable } from 'stream';
+import Database from 'better-sqlite3';
 import { DB_PATH, DATA_DIR, getDb } from './connection.js';
 
 const BACKUP_ENCRYPTION_ALGO = 'aes-256-gcm';
 const BACKUP_IV_LENGTH = 12;
 const BACKUP_AUTH_TAG_LENGTH = 16;
+const BACKUP_CHUNK_PAGES = 100; // Pages per backup step (balance of speed vs locking)
 
 function getBackupEncryptionKey(): Buffer {
 	const secret = process.env.JOURNAL_ENCRYPTION_KEY;
@@ -17,52 +19,114 @@ function getBackupEncryptionKey(): Buffer {
 	return scryptSync(secret, 'mcj-backup-encryption-salt', 32);
 }
 
+/**
+ * Verify that a backup file is a valid SQLite database.
+ */
+function verifyBackupIntegrity(backupPath: string): { valid: boolean; error?: string } {
+	try {
+		const testDb = new Database(backupPath, { readonly: true });
+		try {
+			// Run SQLite integrity check
+			const result = testDb.pragma('integrity_check') as string | string[];
+			const isValid = Array.isArray(result) ? result[0] === 'ok' : result === 'ok';
+
+			if (!isValid) {
+				return { valid: false, error: 'SQLite integrity check failed' };
+			}
+
+			// Verify required tables exist
+			const tables = testDb.prepare(
+				"SELECT name FROM sqlite_master WHERE type='table' AND name IN ('entries', 'config')"
+			).all() as Array<{ name: string }>;
+
+			if (tables.length < 2) {
+				return { valid: false, error: 'Backup missing required tables' };
+			}
+
+			return { valid: true };
+		} finally {
+			testDb.close();
+		}
+	} catch (error) {
+		return {
+			valid: false,
+			error: error instanceof Error ? error.message : 'Unknown error'
+		};
+	}
+}
+
+/**
+ * Apply retention policy to remove old backups.
+ */
+function applyRetentionPolicy(backupDir: string): void {
+	const RETENTION_COUNT = 5;
+	const backups = getBackups();
+
+	if (backups.length > RETENTION_COUNT) {
+		const backupsToDelete = backups.slice(RETENTION_COUNT);
+		for (const backup of backupsToDelete) {
+			try {
+				fs.unlinkSync(backup.path);
+			} catch (error) {
+				console.error(`Failed to delete old backup ${backup.filename}:`, error);
+			}
+		}
+	}
+}
+
 export async function createBackup(): Promise<string> {
 	const database = getDb();
 
-	database.pragma('wal_checkpoint(TRUNCATE)');
-
+	// Ensure backup directory exists
 	const backupDir = path.join(DATA_DIR, 'backups');
 	if (!fs.existsSync(backupDir)) {
 		fs.mkdirSync(backupDir, { recursive: true });
 	}
 
 	const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-	const backupPath = path.join(backupDir, `journal-backup-${timestamp}.db.enc`);
+	const backupPath = path.join(backupDir, `journal-backup-${timestamp}.db`);
 	const tempPath = `${backupPath}.tmp`;
 
-	const key = getBackupEncryptionKey();
-	const iv = randomBytes(BACKUP_IV_LENGTH);
-	const cipher = createCipheriv(BACKUP_ENCRYPTION_ALGO, key, iv);
-
-	const readStream = fs.createReadStream(DB_PATH);
-	const writeStream = fs.createWriteStream(tempPath);
 	try {
-		await pipeline(readStream, cipher, writeStream);
+		// Use SQLite's native backup API for consistency
+		const backupDb = new Database(tempPath);
 
-		const authTag = cipher.getAuthTag();
+		try {
+			// Perform backup with page-by-page copying (allows concurrent reads)
+			const backup = database.backup(backupDb);
 
-		const finalWriteStream = fs.createWriteStream(backupPath);
-		finalWriteStream.write(iv);
-		finalWriteStream.write(authTag);
-		const encryptedStream = fs.createReadStream(tempPath);
-		await pipeline(encryptedStream, finalWriteStream);
-	} finally {
+			// Step through backup in chunks to minimize lock time
+			let remaining = backup.remaining;
+			while (remaining > 0) {
+				backup.step(BACKUP_CHUNK_PAGES);
+				remaining = backup.remaining;
+			}
+
+			backup.finish();
+		} finally {
+			backupDb.close();
+		}
+
+		// Verify backup integrity before finalizing
+		const integrityCheck = verifyBackupIntegrity(tempPath);
+		if (!integrityCheck.valid) {
+			throw new Error(`Backup integrity check failed: ${integrityCheck.error}`);
+		}
+
+		// Atomically move temp file to final location
+		fs.renameSync(tempPath, backupPath);
+
+		// Apply retention policy
+		applyRetentionPolicy(backupDir);
+
+		return backupPath;
+	} catch (error) {
+		// Clean up temp file on any error
 		if (fs.existsSync(tempPath)) {
 			fs.unlinkSync(tempPath);
 		}
+		throw error;
 	}
-
-	const backups = getBackups();
-	const RETENTION_COUNT = 5;
-	if (backups.length > RETENTION_COUNT) {
-		const backupsToDelete = backups.slice(RETENTION_COUNT);
-		for (const backup of backupsToDelete) {
-			fs.unlinkSync(backup.path);
-		}
-	}
-
-	return backupPath;
 }
 
 export function getBackups(): Array<{
@@ -77,10 +141,11 @@ export function getBackups(): Array<{
 	}
 
 	const files = fs.readdirSync(backupDir)
-		.filter(file =>
-			(file.startsWith('journal-backup-') && file.endsWith('.db')) ||
-			(file.startsWith('journal-backup-') && file.endsWith('.db.enc'))
-		)
+		.filter(file => {
+			// Support both encrypted (.db.enc) and unencrypted (.db) backups
+			return file.startsWith('journal-backup-') &&
+				(file.endsWith('.db') || file.endsWith('.db.enc'));
+		})
 		.map(file => {
 			const filePath = path.join(backupDir, file);
 			const stats = fs.statSync(filePath);

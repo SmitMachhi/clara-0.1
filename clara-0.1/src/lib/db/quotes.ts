@@ -3,6 +3,7 @@ import { getDb } from './connection.js';
 import { decryptOptionalNumber, encryptOptionalNumber } from './crypto-helpers.js';
 import { parseQuoteSource, serializeQuoteSource } from '$lib/quote-parser.js';
 import type { DailyQuote, QuoteSource } from './types.js';
+import type Database from 'better-sqlite3';
 
 interface ParsedQuotesCache {
 	quotes: string[] | null;
@@ -30,6 +31,7 @@ interface LegacyQuoteRow {
 }
 
 const SOURCE_ID = 1;
+const MAX_QUOTE_SOURCE_SIZE = 1024 * 1024; // 1MB max for quote source text
 const parsedQuotesCache: ParsedQuotesCache = {
 	quotes: null,
 	sourceHash: null
@@ -129,6 +131,11 @@ export function getParsedQuotes(): { quotes: string[]; errors: string[] } {
 	}
 	const result = parseQuoteSource(source.sourceText);
 	if (result.errors.length === 0) {
+		// Enforce cache size limit to prevent unbounded memory growth
+		if (source.sourceText.length > MAX_QUOTE_SOURCE_SIZE) {
+			console.warn(`Quote source exceeds cache size limit, skipping cache`);
+			return result;
+		}
 		parsedQuotesCache.quotes = result.quotes;
 		parsedQuotesCache.sourceHash = sourceHash;
 	}
@@ -168,4 +175,60 @@ export function getDailyQuotes(): DailyQuote[] {
 		ORDER BY date DESC
 	`).all() as DailyQuoteRow[];
 	return rows.map(mapDailyQuoteRow);
+}
+
+/**
+ * Atomically get or create daily quote within a transaction.
+ * Must be called inside an active transaction.
+ */
+export function getOrCreateDailyQuoteAtomic(
+	database: Database.Database,
+	date: string
+): { quote_id: number | null; text: string } | null {
+	// Check for existing quote (WITHIN transaction, so locked)
+	const existingRow = database.prepare(`
+		SELECT quote_id_encrypted, quote_text_encrypted
+		FROM daily_quotes
+		WHERE date = ?
+	`).get(date) as {
+		quote_id_encrypted: Buffer | null;
+		quote_text_encrypted: Buffer;
+	} | undefined;
+
+	if (existingRow) {
+		return {
+			quote_id: decryptOptionalNumber(existingRow.quote_id_encrypted),
+			text: decrypt(existingRow.quote_text_encrypted.toString('utf8'))
+		};
+	}
+
+	// Get quote source
+	const sourceRow = database.prepare(`
+		SELECT source_text_encrypted
+		FROM quote_sources
+		WHERE id = 1
+	`).get() as { source_text_encrypted: Buffer } | undefined;
+
+	if (!sourceRow) {
+		return null;
+	}
+
+	const sourceText = decrypt(sourceRow.source_text_encrypted.toString('utf8'));
+	const parsed = parseQuoteSource(sourceText);
+
+	if (parsed.quotes.length === 0) {
+		return null;
+	}
+
+	// Select random quote
+	const quoteText = parsed.quotes[Math.floor(Math.random() * parsed.quotes.length)];
+	const quoteTextEncrypted = Buffer.from(encrypt(quoteText), 'utf8');
+
+	// Insert within same transaction
+	database.prepare(`
+		INSERT OR IGNORE INTO daily_quotes (date, quote_id_encrypted, quote_text_encrypted)
+		VALUES (?, ?, ?)
+	`).run(date, null, quoteTextEncrypted);
+
+	return { quote_id: null, text: quoteText };
 }

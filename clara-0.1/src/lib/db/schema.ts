@@ -94,4 +94,14 @@ export function initializeSchema(db: Database.Database): void {
 	`);
 
 	runMigrations(db);
+
+	// Migration: Ensure encryption salt exists for secure key derivation
+	const saltRow = db.prepare("SELECT value FROM config WHERE key = 'encryption_salt'").get() as { value: string } | undefined;
+	if (!saltRow) {
+		// Generate and store salt for new databases
+		// This is used by the encryption system for PBKDF2 key derivation
+		const { randomBytes } = require('crypto');
+		const newSalt = randomBytes(32).toString('hex');
+		db.prepare("INSERT INTO config (key, value) VALUES ('encryption_salt', ?)").run(newSalt);
+	}
 }

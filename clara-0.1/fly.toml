@@ -9,7 +9,8 @@ primary_region = "yyz"
 [env]
   NODE_ENV = "production"
   PORT = "3000"
-  NODE_OPTIONS = "--max-old-space-size=160"
+  NODE_OPTIONS = "--max-old-space-size=140 --optimize-for-size"
+  UV_THREADPOOL_SIZE = "4"
 
 [http_service]
   internal_port = 3000

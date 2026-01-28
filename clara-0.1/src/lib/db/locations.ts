@@ -10,6 +10,7 @@ import { calculateDistance } from '../location-utils.js';
 
 const LOCATION_MATCH_TOLERANCE_METERS = 500;
 const LOCATION_CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_LOCATION_CACHE_SIZE = 100; // Prevent unbounded memory growth
 
 interface LocationCache {
 	data: Location[] | null;
@@ -58,6 +59,14 @@ export function getLocations(): Location[] {
 			address: decryptOptionalString(row.address_encrypted)
 		}))
 		.sort((a, b) => a.name.localeCompare(b.name));
+
+	// Enforce cache size limit to prevent unbounded memory growth
+	if (locations.length > MAX_LOCATION_CACHE_SIZE) {
+		console.warn(
+			`Location cache size (${locations.length}) exceeds limit (${MAX_LOCATION_CACHE_SIZE}), skipping cache`
+		);
+		return locations;
+	}
 
 	locationCache.data = locations;
 	locationCache.timestamp = Date.now();

@@ -4,6 +4,7 @@ import type { Handle } from '@sveltejs/kit';
 import { verifySessionToken, SESSION_REFRESH_THRESHOLD_MS, refreshSessionToken, validateConfiguredPassphrase } from '$lib/auth.js';
 import { getActiveSession, isSessionNonceBlacklisted, updateSessionExpiration } from '$lib/db.js';
 import { checkRateLimit, getRateLimitKey } from '$lib/rate-limit.js';
+import { closeDb } from '$lib/db.js';
 
 // Validate passphrase on server startup
 try {
@@ -151,4 +152,25 @@ function isValidBackupToken(provided: string | null, expected: string | undefine
 	const expectedBuffer = Buffer.from(expected);
 	if (providedBuffer.length !== expectedBuffer.length) return false;
 	return timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
+// Graceful shutdown handlers
+function handleShutdown(signal: string): void {
+	console.log(`Received ${signal}, closing database connection...`);
+	try {
+		closeDb();
+		console.log('Database connection closed successfully');
+	} catch (error) {
+		console.error('Error closing database:', error);
+	}
+	// Exit after a brief delay to allow logs to flush
+	setTimeout(() => {
+		process.exit(0);
+	}, 100);
+}
+
+// Register handlers only in production to avoid dev mode issues
+if (process.env.NODE_ENV === 'production') {
+	process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+	process.on('SIGINT', () => handleShutdown('SIGINT'));
 }
