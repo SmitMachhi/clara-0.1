@@ -1,0 +1,2658 @@
+/**
+ * Morning Clarity Journal - Global Styles
+ *
+ * Sections:
+ * 1. Tailwind Import
+ * 2. Theme Variables (@theme + :root)
+ * 3. Base Reset & Typography
+ * 4. Form Elements (inputs, buttons, selects)
+ * 5. Animations
+ * 6. Page Layout (containers, headers)
+ * 7. Content Blocks (toggles, fields)
+ * 8. Sidebar & Navigation
+ * 9. Modals & Overlays
+ * 10. Components (tracker, dropdowns, settings)
+ * 11. Responsive Breakpoints
+ */
+
+/* ==========================================================================
+   1. TAILWIND IMPORT
+   ========================================================================== */
+@import 'tailwindcss';
+
+/* ==========================================================================
+   2. THEME VARIABLES
+   Design tokens for colors, spacing, typography, shadows
+   ========================================================================== */
+
+/*
+ * Design System based on Notion's aesthetic:
+ * - Seamless, invisible inputs
+ * - Paper-like writing experience
+ * - System fonts for native feel
+ * - Precise typography with tight letter-spacing
+ */
+
+@theme {
+	/* Notion's Typography - System fonts for native feel */
+	--font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol";
+	--font-serif: Lyon-Text, Georgia, ui-serif, serif;
+	--font-mono: iawriter-mono, Nitti, Menlo, Courier, monospace;
+
+	/* Default colors */
+	--color-bg: #191919;
+	--color-surface: #202020;
+	--color-surface-elevated: #2f2f2f;
+	--color-text: rgba(255, 255, 255, 0.9);
+	--color-text-secondary: rgba(255, 255, 255, 0.6);
+	--color-text-tertiary: rgba(255, 255, 255, 0.35);
+	--color-accent: #e04545;
+	--color-border: rgba(255, 255, 255, 0.094);
+	--color-success: #4dab9a;
+	--color-missed: #ff7369;
+}
+
+/* ==========================================================================
+   NOTION-STYLE THEME
+   Seamless writing experience
+   ========================================================================== */
+
+/* Light theme (default) - also used when .ritual class is present */
+:root {
+	--bg: #FFFFFF;
+	--bg-page: rgb(251, 251, 250);
+	--surface: #FFFFFF;
+	--surface-elevated: rgba(55, 53, 47, 0.04);
+	--text: rgb(55, 53, 47);
+	--text-secondary: rgba(55, 53, 47, 0.65);
+	--text-tertiary: rgba(55, 53, 47, 0.4);
+	--text-placeholder: rgba(55, 53, 47, 0.4);
+	--accent: #e04545;
+	--border: rgba(55, 53, 47, 0.09);
+	--success: #0f7b6c;
+	--missed: #e03e3e;
+	--color-blue: rgb(35, 131, 226);
+	--color-blue-hover: rgb(0, 117, 211);
+	--color-blue-selection: rgba(35, 131, 226, 0.28);
+	--color-blue-bg: rgba(35, 131, 226, 0.1);
+
+	/* Sidebar - Notion's warmer gray */
+	--sidebar-bg: #F7F6F3;
+
+	/* Spacing tokens (8px base unit) */
+	--space-xs: 0.25rem;
+	--space-sm: 0.5rem;
+	--space-md: 1rem;
+	--space-lg: 1.5rem;
+	--space-xl: 2rem;
+	--space-2xl: 3rem;
+	--space-3xl: 4rem;
+
+	/* Layout tokens */
+	--page-max-width: 900px;
+	--page-padding-desktop: 96px;
+	--page-padding-tablet: 48px;
+	--page-padding-mobile: 32px;
+	--page-padding-small: 16px;
+	--sidebar-width: 280px;
+	--sidebar-width-mobile: 360px;
+	--header-padding-top: 80px;
+	--header-padding-bottom: 32px;
+
+	/* Typography sizes */
+	--text-xs: 0.75rem;
+	--text-sm: 0.875rem;
+	--text-base: 1rem;
+	--text-lg: 1.125rem;
+	--text-xl: 1.25rem;
+	--text-2xl: 1.5rem;
+	--text-3xl: 2rem;
+
+	/* Line heights - Notion precise */
+	--leading-tight: 1.3;
+	--leading-normal: 1.5;
+	--leading-relaxed: 1.625;
+
+	/* Letter spacing - Notion's tight spacing */
+	--tracking-tight: -0.003em;
+	--tracking-normal: 0;
+
+	/* Border radius */
+	--radius-sm: 3px;
+	--radius-md: 4px;
+	--radius-lg: 6px;
+
+	/* Transitions */
+	--transition-fast: 100ms ease;
+	--transition-normal: 150ms ease;
+
+	/* No page shadow - Notion is flat */
+	--page-shadow: none;
+
+	/* Shadow tokens - eliminate duplication */
+	--shadow-sm: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px;
+	--shadow-sm-dark: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 3px 6px;
+	--shadow-md: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 5px 10px, rgba(15, 15, 15, 0.2) 0px 15px 40px;
+	--shadow-md-dark: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.3) 0px 5px 10px, rgba(0, 0, 0, 0.5) 0px 15px 40px;
+	--shadow-lg: rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px, rgba(15, 15, 15, 0.2) 0px 9px 24px;
+	--shadow-lg-dark: rgba(255, 255, 255, 0.05) 0px 0px 0px 1px, rgba(0, 0, 0, 0.2) 0px 3px 6px, rgba(0, 0, 0, 0.4) 0px 9px 24px;
+	--question-marker-width: 18px;
+	--question-marker-gap: 6px;
+	--toggle-icon-gap: 2px;
+	--safe-top: env(safe-area-inset-top, 0px);
+	--safe-right: env(safe-area-inset-right, 0px);
+	--safe-bottom: env(safe-area-inset-bottom, 0px);
+	--safe-left: env(safe-area-inset-left, 0px);
+}
+
+/* Dark mode - also used when .ritual.dark classes are present */
+:root.dark {
+	--bg: #191919;
+	--bg-page: #191919;
+	--surface: #202020;
+	--surface-elevated: rgba(255, 255, 255, 0.04);
+	--text: rgba(255, 255, 255, 0.9);
+	--text-secondary: rgba(255, 255, 255, 0.6);
+	--text-tertiary: rgba(255, 255, 255, 0.4);
+	--text-placeholder: rgba(255, 255, 255, 0.4);
+	--accent: #e04545;
+	--border: rgba(255, 255, 255, 0.094);
+	--success: #4dab9a;
+	--missed: #ff7369;
+
+	/* Sidebar - Notion dark sidebar */
+	--sidebar-bg: #25282B;
+
+	/* No page shadow in dark mode either */
+	--page-shadow: none;
+}
+
+/* ==========================================================================
+   3. BASE RESET & TYPOGRAPHY
+   Box-sizing, scrollbars, selection, focus states
+   ========================================================================== */
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+html {
+	font-family: var(--font-sans);
+	font-size: 16px;
+	line-height: var(--leading-normal);
+	letter-spacing: var(--tracking-tight);
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+}
+
+body {
+	background-color: var(--bg);
+	color: var(--text);
+	min-height: 100vh;
+	min-height: 100dvh;
+	overflow-x: hidden;
+}
+
+/* Minimal scrollbar - Notion style */
+::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+	background: transparent;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--border);
+	border-radius: 9999px;
+	border: 2px solid transparent;
+	background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--text-tertiary);
+	border: 2px solid transparent;
+	background-clip: content-box;
+}
+
+/* Typography utilities */
+.font-serif {
+	font-family: var(--font-serif);
+}
+
+.font-mono {
+	font-family: var(--font-mono);
+}
+
+/* Input styles - Notion-style seamless */
+/* ==========================================================================
+   4. FORM ELEMENTS
+   Inputs, textareas, selects, buttons
+   ========================================================================== */
+input, textarea, select {
+	background-color: transparent;
+	border: none;
+	color: var(--text);
+	padding: 3px 2px;
+	font-family: inherit;
+	font-size: 1rem;
+	width: 100%;
+	line-height: 1.5;
+	letter-spacing: var(--tracking-tight);
+}
+
+input:focus, textarea:focus, select:focus {
+	outline: none;
+}
+
+input::placeholder, textarea::placeholder {
+	color: var(--text-placeholder);
+}
+
+textarea {
+	resize: none;
+	overflow: hidden;
+}
+
+/* Button base - unobtrusive */
+button {
+	cursor: pointer;
+	font-family: inherit;
+	font-size: 0.875rem;
+	border: none;
+	background: none;
+	color: inherit;
+	transition: background var(--transition-fast);
+	letter-spacing: var(--tracking-tight);
+}
+
+button:disabled {
+	cursor: not-allowed;
+	opacity: 0.4;
+}
+
+/* Selection - Notion style blue */
+::selection {
+	background-color: var(--color-blue-selection);
+}
+
+/* Focus visible for accessibility - subtle and warm */
+:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 1.5px rgba(180, 150, 120, 0.4);
+	border-radius: var(--radius-sm);
+}
+
+.dark :focus-visible {
+	box-shadow: 0 0 0 1.5px rgba(200, 170, 130, 0.3);
+}
+
+/* ==========================================================================
+   ANIMATIONS
+   ========================================================================== */
+
+/* ==========================================================================
+   5. ANIMATIONS
+   Keyframe definitions and animation utility classes
+   ========================================================================== */
+@keyframes fadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes slideUp {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes shake {
+	0%, 100% { transform: translateX(0); }
+	10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+	20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+@keyframes spin {
+	to { transform: rotate(360deg); }
+}
+
+.animate-fade-in {
+	animation: fadeIn 200ms ease forwards;
+}
+
+.animate-slide-up {
+	animation: slideUp 200ms ease forwards;
+}
+
+.shake {
+	animation: shake 0.4s ease-in-out;
+}
+
+.animate-spin {
+	animation: spin 0.8s linear infinite;
+}
+
+/* ==========================================================================
+   NOTION-STYLE PAGE LAYOUT
+   Core layout components used across pages
+   ========================================================================== */
+
+/* ==========================================================================
+   6. PAGE LAYOUT
+   Main containers, headers, content areas
+   ========================================================================== */
+.notion-page {
+	min-height: 100vh;
+	min-height: 100dvh;
+	background: var(--bg);
+	display: flex;
+	position: relative;
+}
+
+.main-area {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	min-height: 100vh;
+	min-height: 100dvh;
+}
+
+/* Content area - no header bar */
+.content {
+	flex: 1;
+	overflow-y: auto;
+	display: flex;
+	justify-content: center;
+	padding-bottom: calc(var(--safe-bottom) + 0px);
+}
+
+/* ==========================================================================
+   MESSAGE STATES
+   Loading, error, and info states
+   ========================================================================== */
+
+.message-container {
+	text-align: center;
+	padding: 48px 24px;
+	margin-top: 20vh;
+}
+
+.message-title {
+	color: var(--text-secondary);
+	font-size: 1.125rem;
+	margin: 0 0 8px;
+	font-weight: 500;
+}
+
+.message-text {
+	color: var(--text-tertiary);
+	margin: 0;
+	line-height: 1.6;
+}
+
+.spinner {
+	width: 20px;
+	height: 20px;
+	border: 2px solid var(--border);
+	border-top-color: var(--text-tertiary);
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+	margin: 0 auto;
+}
+
+/* ==========================================================================
+   PAGE CONTAINER
+   Like Notion's document container
+   ========================================================================== */
+
+.page-container {
+	width: 100%;
+	max-width: var(--page-max-width);
+	padding: 0 var(--page-padding-desktop);
+}
+
+/* Floating header inside page */
+.page-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: var(--header-padding-top) 0 var(--header-padding-bottom);
+}
+
+.page-meta {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 0.875rem;
+	letter-spacing: -0.003em;
+}
+
+.meta-time {
+	font-family: var(--font-mono);
+	font-weight: 500;
+	color: var(--text);
+	font-size: 0.8125rem;
+}
+
+.meta-sep {
+	color: var(--text-tertiary);
+}
+
+.meta-date {
+	color: var(--text-secondary);
+}
+
+.meta-year {
+	color: var(--text-tertiary);
+}
+
+.page-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.page-actions-group {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.page-location {
+	margin-top: 4px;
+	font-size: 0.8125rem;
+	color: var(--text-tertiary);
+}
+
+.quote-block {
+	margin: 12px 0 24px;
+	padding: 12px 14px;
+	border-left: 3px solid var(--accent);
+	background: var(--surface-elevated);
+	border-radius: 6px;
+}
+
+.quote-text {
+	margin: 0;
+	font-size: 1rem;
+	line-height: 1.5;
+	font-family: var(--font-serif);
+	color: var(--text);
+}
+
+.location-select {
+	padding: 4px 8px;
+	background: transparent;
+	border: none;
+	border-radius: 3px;
+	color: var(--text-tertiary);
+	font-size: 0.875rem;
+	cursor: pointer;
+	transition: all 0.1s;
+}
+
+.location-select:hover {
+	background: var(--surface-elevated);
+	color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   PAGE CONTENT
+   ========================================================================== */
+
+.page-content {
+	padding-bottom: 80px;
+	display: flex;
+	flex-direction: column;
+}
+
+/* ==========================================================================
+   BLOCK
+   Each question/field section
+   ========================================================================== */
+
+/* ==========================================================================
+   7. CONTENT BLOCKS
+   Toggles, fields, question markers
+   ========================================================================== */
+.block {
+	position: relative;
+	margin-bottom: 2px;
+}
+
+/* Block hover controls */
+.block-controls {
+	position: absolute;
+	left: -32px;
+	top: 4px;
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	opacity: 0;
+	transition: opacity 0.1s;
+}
+
+.block:hover > .block-controls,
+.field-block:hover > .block-controls {
+	opacity: 1;
+}
+
+.block-handle {
+	width: 18px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 3px;
+	color: var(--text-tertiary);
+	cursor: grab;
+	transition: background 0.1s;
+}
+
+.block-handle:hover {
+	background: var(--surface-elevated);
+	color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   TOGGLE
+   Notion's toggle block style
+   ========================================================================== */
+
+.toggle-header {
+	display: flex;
+	align-items: flex-start;
+	gap: 2px;
+	width: 100%;
+	text-align: left;
+	padding: 3px 2px;
+	margin-left: -2px;
+	border-radius: 3px;
+	transition: background 0.1s;
+	cursor: pointer;
+}
+
+.toggle-header:hover {
+	background: rgba(55, 53, 47, 0.04);
+}
+
+.dark .toggle-header:hover {
+	background: rgba(255, 255, 255, 0.03);
+}
+
+/* Filled triangle icon - Notion style */
+.toggle-icon {
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-tertiary);
+	transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+	flex-shrink: 0;
+	border-radius: 3px;
+}
+
+.toggle-icon:hover {
+	background: var(--surface-elevated);
+}
+
+.toggle-icon.open {
+	transform: rotate(90deg);
+}
+
+.toggle-title {
+	font-size: 1rem;
+	font-weight: 600;
+	color: var(--text);
+	line-height: 1.5;
+	letter-spacing: -0.003em;
+}
+
+.toggle-title.legacy {
+	font-weight: 500;
+	color: var(--text-secondary);
+	font-size: 0.875rem;
+}
+
+.toggle-number {
+	color: var(--text-tertiary);
+	display: inline-block;
+	min-width: var(--question-marker-width);
+	margin-right: var(--question-marker-gap);
+	text-align: right;
+}
+
+/* Toggle content - indented */
+.toggle-content {
+	margin-left: -2px;
+	padding-left: calc(24px + var(--toggle-icon-gap) + var(--question-marker-width) + var(--question-marker-gap));
+	padding-top: 2px;
+	padding-bottom: 4px;
+}
+
+/* ==========================================================================
+   FIELD BLOCK
+   Individual input fields
+   ========================================================================== */
+
+.field-block {
+	position: relative;
+	margin-bottom: 4px;
+}
+
+.field-block > .block-controls {
+	top: 2px;
+}
+
+.field-label {
+	font-size: 0.8125rem;
+	color: var(--text-secondary);
+	margin-bottom: 2px;
+	padding-left: 0;
+	letter-spacing: -0.003em;
+	font-weight: 500;
+}
+
+.field-label.mp-label::before {
+	content: '•';
+	color: var(--text-tertiary);
+	position: absolute;
+	left: calc(-1 * (var(--question-marker-width) + var(--question-marker-gap)));
+	width: var(--question-marker-width);
+	text-align: right;
+}
+
+.field-label.mp-label {
+	position: relative;
+}
+
+/* ==========================================================================
+   CONTENTEDITABLE INPUT
+   Notion's seamless feel
+   ========================================================================== */
+
+.field-input {
+	display: block;
+	width: 100%;
+	min-height: 2.5em;
+	max-height: 40vh;
+	overflow-y: auto;
+	padding: 6px 0;
+	font-size: 1rem;
+	line-height: 1.5;
+	letter-spacing: -0.003em;
+	color: var(--text);
+	background: transparent;
+	border: none;
+	border-radius: 3px;
+	outline: none;
+	white-space: pre-wrap;
+	word-break: break-word;
+	caret-color: var(--text);
+	transition: color 0.1s ease;
+}
+
+/* Ensure cursor appears in empty contenteditable */
+.field-input:empty::before {
+	content: '\200B'; /* zero-width space */
+}
+
+.field-input[data-placeholder]:empty::before {
+	content: attr(data-placeholder);
+	color: var(--text-placeholder);
+}
+
+/* Focus stays seamless (paper-like) */
+.field-input:focus {
+	background: transparent;
+	box-shadow: none;
+}
+
+/* ==========================================================================
+   FIELD VALUE
+   Read-only display of field content
+   ========================================================================== */
+
+.field-value {
+	font-size: 1rem;
+	line-height: 1.5;
+	letter-spacing: -0.003em;
+	color: var(--text);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+/* ==========================================================================
+   SAVE SECTION
+   ========================================================================== */
+
+.save-section {
+	margin-top: 48px;
+	padding-top: 24px;
+	border-top: 1px solid var(--border);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+}
+
+.error {
+	color: var(--missed);
+	font-size: 0.875rem;
+	margin: 0;
+}
+
+.save-btn {
+	padding: 10px 20px;
+	border-radius: 4px;
+	font-size: 0.875rem;
+	font-weight: 500;
+	transition: all 0.15s;
+	background: rgba(55, 53, 47, 0.08);
+	color: var(--text-tertiary);
+	cursor: not-allowed;
+	border: 1px solid var(--border);
+}
+
+.dark .save-btn {
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.save-btn.ready {
+	background: var(--color-blue);
+	color: white;
+	cursor: pointer;
+	border-color: transparent;
+}
+
+.save-btn.ready:hover {
+	background: var(--color-blue-hover);
+}
+
+.save-btn.ready:active {
+	transform: scale(0.98);
+}
+
+/* ==========================================================================
+   8. SIDEBAR & NAVIGATION
+   Sidebar panel, toggle buttons, navigation controls
+   ========================================================================== */
+/* ==========================================================================
+   PROGRESS PILL
+   ========================================================================== */
+
+.progress-pill {
+	position: fixed;
+	bottom: calc(20px + var(--safe-bottom));
+	right: calc(20px + var(--safe-right));
+	background: var(--surface);
+	padding: 6px 10px;
+	border-radius: 4px;
+	font-size: 0.75rem;
+	z-index: 50;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	box-shadow: var(--shadow-sm);
+}
+
+.dark .progress-pill {
+	box-shadow: var(--shadow-sm-dark);
+}
+
+.progress-count {
+	font-weight: 600;
+	color: var(--color-blue);
+}
+
+.progress-text {
+	color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   NAVIGATION BUTTONS
+   Floating action buttons
+   ========================================================================== */
+
+.nav-btn {
+	position: fixed;
+	width: 32px;
+	height: 32px;
+	border-radius: 4px;
+	background: var(--surface);
+	color: var(--text-tertiary);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: var(--shadow-sm);
+	transition: all 0.1s;
+	z-index: 50;
+}
+
+.dark .nav-btn {
+	box-shadow: var(--shadow-sm-dark);
+}
+
+.nav-btn:hover {
+	color: var(--text);
+	background: var(--surface-elevated);
+}
+
+.nav-btn.back {
+	bottom: calc(20px + var(--safe-bottom));
+	left: calc(20px + var(--safe-left));
+}
+
+.entry-page .nav-btn.back {
+	left: auto;
+	right: calc(20px + var(--safe-right));
+}
+
+/* ==========================================================================
+   SIDEBAR TOGGLE BUTTON
+   ========================================================================== */
+
+.sidebar-toggle {
+	position: fixed;
+	top: calc(12px + var(--safe-top));
+	right: calc(12px + var(--safe-right));
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-tertiary);
+	border-radius: 4px;
+	transition: all 0.1s;
+	z-index: 50;
+}
+
+.sidebar-toggle:hover {
+	background: var(--surface-elevated);
+	color: var(--text);
+}
+
+/* ==========================================================================
+   SIDEBAR OVERLAY
+   ========================================================================== */
+
+.sidebar-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(15, 15, 15, 0.35);
+	z-index: 90;
+	display: none;
+}
+
+/* ==========================================================================
+   SIDEBAR
+   Notion's sidebar style
+   ========================================================================== */
+
+.sidebar {
+	position: fixed;
+	top: 0;
+	right: 0;
+	width: var(--sidebar-width);
+	height: 100vh;
+	height: 100dvh;
+	padding-bottom: var(--safe-bottom);
+	background: var(--sidebar-bg, #F7F6F3);
+	border-left: 1px solid var(--border);
+	transform: translateX(100%);
+	transition: transform 0.2s ease;
+	z-index: 100;
+	overflow-y: auto;
+}
+
+.dark .sidebar {
+	background: #25282B;
+}
+
+.sidebar.open {
+	transform: translateX(0);
+}
+
+.sidebar-inner {
+	padding: 16px;
+}
+
+.sidebar-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	margin-bottom: 12px;
+	position: relative;
+}
+
+.sidebar-title {
+	font-size: 0.875rem;
+	font-weight: 600;
+	color: var(--text);
+	margin: 0 0 2px;
+	letter-spacing: -0.003em;
+}
+
+.sidebar-stats {
+	font-size: 0.6875rem;
+	color: var(--text-tertiary);
+}
+
+/* Settings Button */
+.settings-btn {
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-tertiary);
+	border-radius: 4px;
+	transition: all 0.1s;
+	flex-shrink: 0;
+}
+
+.settings-btn:hover {
+	background: rgba(55, 53, 47, 0.08);
+	color: var(--text-secondary);
+}
+
+.dark .settings-btn:hover {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+/* Settings Modal Overlay */
+/* ==========================================================================
+   9. MODALS & OVERLAYS
+   Settings modal, overlay backgrounds
+   ========================================================================== */
+.settings-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(15, 15, 15, 0.6);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+	animation: fadeIn 150ms ease;
+	padding: 24px;
+}
+
+.dark .settings-overlay {
+	background: rgba(0, 0, 0, 0.7);
+}
+
+/* Settings Modal */
+.settings-modal {
+	width: 100%;
+	max-width: 520px;
+	max-height: calc(100vh - 48px);
+	background: var(--surface);
+	border-radius: 12px;
+	box-shadow: var(--shadow-md);
+	display: flex;
+	flex-direction: column;
+	animation: modalSlideUp 200ms cubic-bezier(0.32, 0.72, 0, 1);
+	overflow: hidden;
+}
+
+.dark .settings-modal {
+	background: #2f2f2f;
+	box-shadow: var(--shadow-md-dark);
+}
+
+@keyframes modalSlideUp {
+	from {
+		opacity: 0;
+		transform: translateY(8px) scale(0.98);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+.settings-modal-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 16px 20px;
+	border-bottom: 1px solid var(--border);
+}
+
+.settings-modal-title {
+	font-size: 1rem;
+	font-weight: 600;
+	color: var(--text);
+	margin: 0;
+	letter-spacing: -0.01em;
+}
+
+.settings-close-btn {
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-tertiary);
+	border-radius: 4px;
+	transition: all 0.1s;
+}
+
+.settings-close-btn:hover {
+	background: rgba(55, 53, 47, 0.08);
+	color: var(--text);
+}
+
+.dark .settings-close-btn:hover {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.settings-modal-content {
+	padding: 20px;
+	min-height: 300px;
+	overflow-y: auto;
+}
+
+/* ==========================================================================
+   10. COMPONENTS
+   Tracker, dropdowns, location picker, settings UI
+   ========================================================================== */
+/* ==========================================================================
+   TRACKER
+   Year progress visualization
+   ========================================================================== */
+
+.tracker-card {
+	background: #fffdf8;
+	border: 1px solid rgba(55, 53, 47, 0.12);
+	border-radius: 8px;
+	padding: 12px;
+	margin-bottom: 16px;
+}
+
+.dark .tracker-card {
+	background: #1a1c1f;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tracker {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 3px;
+	margin-bottom: 6px;
+}
+
+.tracker-day {
+	width: 9px;
+	height: 9px;
+	border-radius: 3px;
+	background: rgba(55, 53, 47, 0.2);
+}
+
+.tracker-day.completed {
+	background: var(--success);
+	cursor: pointer;
+}
+
+.tracker-day.missed {
+	background: rgba(55, 53, 47, 0.18);
+}
+
+.tracker-day.future {
+	background: rgba(55, 53, 47, 0.1);
+}
+
+.tracker-day.today {
+	background: var(--color-blue);
+}
+
+.dark .tracker-day {
+	background: rgba(255, 255, 255, 0.22);
+}
+
+.dark .tracker-day.missed {
+	background: rgba(255, 255, 255, 0.18);
+}
+
+.dark .tracker-day.future {
+	background: rgba(255, 255, 255, 0.12);
+}
+
+/* ==========================================================================
+   LEGEND
+   ========================================================================== */
+
+.legend {
+	display: flex;
+	gap: 10px;
+	font-size: 0.5625rem;
+	color: var(--text-tertiary);
+	margin-bottom: 0;
+}
+
+.legend span {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+}
+
+.legend-dot {
+	width: 5px;
+	height: 5px;
+	border-radius: 1px;
+}
+
+.legend-dot.completed {
+	background: var(--success);
+}
+
+.legend-dot.missed {
+	background: var(--border);
+	opacity: 0.3;
+}
+
+/* ==========================================================================
+   RECENT ENTRIES
+   ========================================================================== */
+
+.recent-heading {
+	font-size: 0.625rem;
+	font-weight: 600;
+	color: var(--text-tertiary);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin: 0 0 6px;
+}
+
+.recent {
+	display: flex;
+	flex-direction: column;
+}
+
+.recent-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 6px 8px;
+	border-radius: 4px;
+	font-size: 0.75rem;
+	color: var(--text);
+	transition: background 0.1s;
+	width: 100%;
+	text-align: left;
+}
+
+button.recent-item:hover {
+	background: rgba(55, 53, 47, 0.04);
+}
+
+.dark button.recent-item:hover {
+	background: rgba(255, 255, 255, 0.04);
+}
+
+.recent-item.completed .recent-date-text {
+	color: var(--success);
+}
+
+.recent-item.missed .recent-date-text {
+	color: var(--missed);
+	opacity: 0.7;
+}
+
+.recent-info {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.recent-year {
+	color: var(--text-tertiary);
+	font-size: 0.6875rem;
+}
+
+.recent-time {
+	color: var(--text-secondary);
+	font-size: 0.6875rem;
+	font-family: var(--font-mono);
+}
+
+.recent-time::before {
+	content: '·';
+	margin: 0 5px;
+	color: var(--text-tertiary);
+}
+
+/* ==========================================================================
+   EDGE TRIGGER
+   ========================================================================== */
+
+.edge-trigger {
+	position: fixed;
+	top: 0;
+	right: 0;
+	width: 8px;
+	height: 100vh;
+	z-index: 98;
+	cursor: e-resize;
+}
+
+/* ==========================================================================
+   THEME BUTTON
+   ========================================================================== */
+
+.theme-btn {
+	position: fixed;
+	bottom: calc(20px + var(--safe-bottom));
+	left: calc(20px + var(--safe-left));
+	width: 32px;
+	height: 32px;
+	border-radius: 4px;
+	background: var(--surface);
+	color: var(--text-tertiary);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-shadow: var(--shadow-sm);
+	transition: all 0.1s;
+	z-index: 50;
+}
+
+.dark .theme-btn {
+	box-shadow: var(--shadow-sm-dark);
+}
+
+.theme-btn:hover {
+	color: var(--text);
+	background: var(--surface-elevated);
+}
+
+/* ==========================================================================
+   BACK LINK
+   Text-based back navigation
+   ========================================================================== */
+
+.back-link {
+	color: var(--text-tertiary);
+	font-size: 0.875rem;
+	transition: color 0.1s;
+}
+
+.back-link:hover {
+	color: var(--text);
+}
+
+/* ==========================================================================
+   LEGACY SECTION
+   For displaying old template entries
+   ========================================================================== */
+
+.legacy-section {
+	margin-top: 32px;
+	padding-top: 24px;
+	border-top: 1px solid var(--border);
+}
+
+/* ==========================================================================
+   GPS CAPTURE BUTTON (Main Page)
+   ========================================================================== */
+
+/* ==========================================================================
+   CUSTOM LOCATION DROPDOWN (Notion-style)
+   ========================================================================== */
+
+.location-dropdown {
+	position: relative;
+}
+
+.location-dropdown-trigger {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 8px;
+	border-radius: 4px;
+	font-size: 0.875rem;
+	color: var(--text-tertiary);
+	transition: background 0.1s;
+	min-width: 0;
+}
+
+.location-dropdown-trigger:hover {
+	background: var(--surface-elevated);
+	color: var(--text-secondary);
+}
+
+.location-dropdown.open .location-dropdown-trigger {
+	background: var(--surface-elevated);
+}
+
+.location-dropdown-value {
+	color: var(--text);
+}
+
+.location-dropdown-placeholder {
+	color: var(--text-tertiary);
+}
+
+.location-dropdown-arrow {
+	flex-shrink: 0;
+	opacity: 0.5;
+	transition: transform 0.15s ease;
+}
+
+.location-dropdown.open .location-dropdown-arrow {
+	transform: rotate(180deg);
+}
+
+.location-dropdown-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 99;
+}
+
+.location-dropdown-menu {
+	position: absolute;
+	top: calc(100% + 4px);
+	left: 0;
+	min-width: 180px;
+	max-width: 280px;
+	background: var(--surface);
+	border-radius: 6px;
+	box-shadow: var(--shadow-lg);
+	z-index: 100;
+	padding: 4px;
+	animation: dropdownFadeIn 0.15s ease;
+}
+
+.dark .location-dropdown-menu {
+	background: #2f2f2f;
+	box-shadow: var(--shadow-lg-dark);
+}
+
+@keyframes dropdownFadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(-4px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.location-dropdown-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	padding: 8px 10px;
+	border-radius: 4px;
+	font-size: 0.875rem;
+	color: var(--text);
+	text-align: left;
+	transition: background 0.08s;
+	min-height: 36px;
+}
+
+.location-dropdown-item:hover {
+	background: var(--surface-elevated);
+}
+
+.location-dropdown-item.selected {
+	color: var(--accent);
+}
+
+.location-dropdown-item.clear {
+	color: var(--text-tertiary);
+	font-size: 0.8125rem;
+	border-bottom: 1px solid var(--border);
+	border-radius: 4px 4px 0 0;
+	margin-bottom: 4px;
+	padding-bottom: 8px;
+}
+
+.location-dropdown-empty {
+	padding: 12px;
+	font-size: 0.8125rem;
+	color: var(--text-tertiary);
+	text-align: center;
+	line-height: 1.5;
+}
+
+.location-dropdown-empty span {
+	color: var(--text-secondary);
+}
+
+.gps-capture-btn {
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 4px;
+	color: var(--text-tertiary);
+	transition: all 0.1s;
+	flex-shrink: 0;
+}
+
+.gps-capture-btn:hover:not(:disabled) {
+	background: var(--surface-elevated);
+	color: var(--text);
+}
+
+.gps-capture-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.captured-location {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	background: var(--color-blue-bg);
+	border-radius: 4px;
+	font-size: 0.75rem;
+	flex-wrap: wrap;
+}
+
+.captured-label {
+	color: var(--accent);
+	font-family: var(--font-mono);
+	overflow-wrap: anywhere;
+}
+
+.captured-clear {
+	width: 18px;
+	height: 18px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 3px;
+	color: var(--text-tertiary);
+	font-size: 1rem;
+	line-height: 1;
+}
+
+.captured-clear:hover {
+	background: rgba(55, 53, 47, 0.08);
+	color: var(--text);
+}
+
+.dark .captured-clear:hover {
+	background: rgba(255, 255, 255, 0.08);
+}
+
+/* GPS Spinner */
+.gps-spinner {
+	width: 14px;
+	height: 14px;
+	border: 2px solid var(--border);
+	border-top-color: var(--accent);
+	border-radius: 50%;
+	animation: spin 0.8s linear infinite;
+}
+
+/* ==========================================================================
+   SETTINGS MODAL - APPLE GROUPED LIST SYSTEM
+   ========================================================================== */
+
+.settings-modal-extended {
+	max-width: 680px;
+	font-family: var(--font-mono);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	box-shadow: var(--shadow-sm);
+}
+
+.settings-modal-extended .modal-content {
+	min-height: 520px;
+	padding: 14px 16px 16px;
+}
+
+.settings-modal-extended .modal-header {
+	padding: 10px 14px;
+	background: var(--surface-elevated);
+	border-bottom: 1px solid var(--border);
+}
+
+.settings-modal-extended .modal-title {
+	font-size: 0.75rem;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-tertiary);
+}
+
+.settings-modal-extended .modal-close-btn {
+	width: 24px;
+	height: 24px;
+	border-radius: 6px;
+	border: 1px solid var(--border);
+	background: var(--surface);
+}
+
+.settings-modal-extended .modal-close-btn:hover {
+	background: var(--surface-elevated);
+}
+
+/* -- SegmentedControl (sc-*) -- */
+.sc-container {
+	display: flex;
+	position: relative;
+	padding: 4px;
+	border-radius: 8px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	margin-bottom: 16px;
+}
+
+.sc-indicator {
+	position: absolute;
+	top: 4px;
+	bottom: 4px;
+	left: 4px;
+	border-radius: 6px;
+	background: var(--surface-elevated);
+	border: 1px solid var(--border);
+	box-shadow: none;
+	transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1);
+	pointer-events: none;
+}
+
+.dark .sc-indicator {
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.sc-segment {
+	flex: 1;
+	position: relative;
+	z-index: 1;
+	padding: 6px 10px;
+	font-size: 0.75rem;
+	font-weight: 500;
+	letter-spacing: 0.03em;
+	color: var(--text-tertiary);
+	text-align: center;
+	transition: color 150ms ease;
+	border-radius: 6px;
+	text-transform: uppercase;
+}
+
+.sc-segment:hover {
+	color: var(--text-secondary);
+}
+
+.sc-active {
+	color: var(--text);
+}
+
+/* -- SettingsGroup (sg-*) -- */
+.sg-wrapper {
+	margin-bottom: 20px;
+}
+
+.sg-header {
+	font-size: 0.6875rem;
+	font-weight: 600;
+	color: var(--text-tertiary);
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	padding: 0 12px 6px;
+}
+
+.sg-container {
+	background: var(--surface);
+	border-radius: 8px;
+	border: 1px solid var(--border);
+	overflow: hidden;
+}
+
+.sg-presets .sg-container {
+	overflow: visible;
+}
+
+.sg-footer {
+	font-size: 0.75rem;
+	color: var(--text-tertiary);
+	padding: 6px 16px 0;
+	line-height: 1.4;
+}
+
+/* -- SettingsRow (sr-*) -- */
+.sr-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-height: 40px;
+	padding: 8px 12px;
+	position: relative;
+	width: 100%;
+	text-align: left;
+}
+
+.sr-row + .sr-row {
+	border-top: 1px dashed var(--border);
+	margin-left: 0;
+	padding-left: 12px;
+	width: 100%;
+}
+
+.sr-tappable {
+	cursor: pointer;
+	transition: background 0.1s;
+}
+
+.sr-tappable:hover:not(:disabled) {
+	background: var(--surface-elevated);
+}
+
+.dark .sr-tappable:hover:not(:disabled) {
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.sr-tappable:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.sr-content {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+	flex: 1;
+}
+
+.sr-label {
+	font-size: 0.8125rem;
+	color: var(--text);
+}
+
+.sr-destructive .sr-label {
+	color: var(--missed);
+}
+
+.sr-accent .sr-label {
+	color: var(--accent);
+}
+
+.sr-subtitle {
+	font-size: 0.6875rem;
+	color: var(--text-tertiary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sr-action {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
+	margin-left: 12px;
+}
+
+.sr-chevron {
+	color: var(--text-tertiary);
+	flex-shrink: 0;
+	margin-left: 8px;
+}
+
+/* -- ExpandableSection (es-*) -- */
+.es-wrapper {
+	width: 100%;
+}
+
+.es-trigger {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	min-height: 44px;
+	padding: 10px 16px;
+	cursor: pointer;
+	transition: background 0.1s;
+	text-align: left;
+}
+
+.es-trigger:hover {
+	background: rgba(0, 0, 0, 0.02);
+}
+
+.dark .es-trigger:hover {
+	background: rgba(255, 255, 255, 0.03);
+}
+
+.es-label {
+	font-size: 0.875rem;
+	color: var(--text);
+}
+
+.es-chevron {
+	color: var(--text-tertiary);
+	transition: transform 150ms ease;
+	flex-shrink: 0;
+}
+
+.es-chevron-open {
+	transform: rotate(90deg);
+}
+
+.es-content {
+	padding: 0 16px 12px;
+	animation: esFadeIn 150ms ease;
+}
+
+@keyframes esFadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+/* -- Settings Tab Panel -- */
+.settings-tab-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+}
+
+/* -- Quote editor -- */
+.sq-hl-tag {
+	color: var(--accent);
+}
+
+/* -- Shared settings form elements -- */
+.sg-input {
+	width: 100%;
+	padding: 8px 12px;
+	background: var(--surface-elevated);
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	font-size: 0.8125rem;
+	font-family: var(--font-mono);
+	color: var(--text);
+}
+
+.sg-input:focus {
+	border-color: var(--accent);
+	outline: none;
+}
+
+.sg-input::placeholder {
+	color: var(--text-tertiary);
+}
+
+.sg-input-row {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	padding: 8px 12px;
+}
+
+.sg-input-row .sg-input {
+	flex: 1;
+}
+
+.sg-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 12px;
+	border-radius: 6px;
+	font-size: 0.75rem;
+	font-weight: 500;
+	transition: all 0.1s;
+	flex-shrink: 0;
+	border: 1px solid var(--border);
+	background: var(--surface);
+	letter-spacing: 0.02em;
+}
+
+.sg-btn-primary {
+	background: var(--accent);
+	color: white;
+	border-color: transparent;
+}
+
+.sg-btn-primary:hover:not(:disabled) {
+	background: var(--color-blue-hover);
+}
+
+.sg-btn-secondary {
+	background: var(--surface-elevated);
+	color: var(--text-secondary);
+}
+
+.sg-btn-secondary:hover:not(:disabled) {
+	background: var(--border);
+}
+
+.sg-btn-destructive {
+	background: var(--missed);
+	color: white;
+	border-color: transparent;
+}
+
+.sg-btn-destructive:hover:not(:disabled) {
+	opacity: 0.85;
+}
+
+.sg-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.sg-error {
+	font-size: 0.6875rem;
+	color: var(--missed);
+	margin: 0;
+	padding: 4px 12px 8px;
+}
+
+.sg-success {
+	font-size: 0.6875rem;
+	color: var(--success);
+	margin: 0;
+	padding: 4px 12px 8px;
+}
+
+.sg-empty {
+	padding: 14px;
+	font-size: 0.8125rem;
+	color: var(--text-tertiary);
+	text-align: center;
+}
+
+/* Location row delete button */
+.sg-delete-btn {
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 6px;
+	color: var(--text-tertiary);
+	opacity: 0;
+	transition: all 0.1s;
+	border: 1px solid transparent;
+}
+
+.sr-row:hover .sg-delete-btn {
+	opacity: 1;
+}
+
+.sg-delete-btn:hover {
+	background: rgba(224, 62, 62, 0.12);
+	color: var(--missed);
+	border-color: rgba(224, 62, 62, 0.35);
+}
+
+/* Backup download button */
+.sg-download-btn {
+	width: 28px;
+	height: 28px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 6px;
+	color: var(--text-tertiary);
+	transition: all 0.1s;
+	border: 1px solid var(--border);
+	background: var(--surface-elevated);
+}
+
+.sg-download-btn:hover {
+	background: rgba(35, 131, 226, 0.12);
+	color: var(--accent);
+	border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+/* GPS button */
+.sg-gps-btn {
+	width: 36px;
+	height: 36px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--accent);
+	border-radius: 6px;
+	color: white;
+	flex-shrink: 0;
+	transition: all 0.1s;
+	border: 1px solid transparent;
+}
+
+.sg-gps-btn:hover:not(:disabled) {
+	background: var(--color-blue-hover);
+}
+
+.sg-gps-btn:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+/* Manual entry within expandable */
+.sg-manual-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
+.sg-manual-grid .sg-input.full {
+	grid-column: 1 / -1;
+}
+
+/* Template editor textarea */
+.sg-textarea {
+	width: 100%;
+	min-height: 200px;
+	max-height: 360px;
+	padding: 12px;
+	border-radius: 6px;
+	border: 1px solid var(--border);
+	background: var(--surface-elevated);
+	color: var(--text);
+	font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+	font-size: 0.8125rem;
+	line-height: 1.5;
+	resize: vertical;
+	overflow-y: auto;
+	scrollbar-width: thin;
+}
+
+.sg-textarea:focus {
+	border-color: var(--accent);
+	outline: none;
+}
+
+.sg-ide {
+	display: grid;
+	grid-template-columns: 44px 1fr;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	background: var(--surface);
+	min-height: 200px;
+	max-height: 360px;
+	overflow: hidden;
+}
+
+.sg-ide-gutter {
+	background: var(--surface-elevated);
+	border-right: 1px solid var(--border);
+}
+
+.sg-ide-lines {
+	display: grid;
+	gap: 0;
+	padding: 10px 8px;
+	font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+	font-size: 0.75rem;
+	line-height: 1.5;
+	color: var(--text-tertiary);
+	overflow: hidden;
+}
+
+.sg-ide-lines span {
+	height: 1.5em;
+	text-align: right;
+}
+
+.sg-ide-editor {
+	position: relative;
+	min-width: 0;
+}
+
+.sg-ide-highlight,
+.sg-ide-textarea {
+	font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+	font-size: 0.8125rem;
+	line-height: 1.5;
+	padding: 10px 12px;
+	white-space: pre-wrap;
+	word-break: break-word;
+	tab-size: 2;
+	direction: ltr;
+	text-align: left;
+	unicode-bidi: plaintext;
+}
+
+.sg-ide-highlight {
+	position: absolute;
+	inset: 0;
+	margin: 0;
+	color: var(--text);
+	background: transparent;
+	pointer-events: none;
+	overflow: hidden;
+}
+
+.sg-ide-textarea {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	min-height: 200px;
+	max-height: 360px;
+	border: 0;
+	background: transparent;
+	color: transparent;
+	caret-color: var(--text);
+	resize: vertical;
+	overflow: auto;
+	scrollbar-width: thin;
+}
+
+.sg-ide-textarea:focus {
+	outline: none;
+}
+
+.sg-hl-hp {
+	color: var(--accent);
+}
+
+.sg-hl-mp {
+	color: var(--success);
+}
+
+.sg-hl-attr {
+	color: var(--text-secondary);
+}
+
+.sg-hl-string {
+	color: var(--accent);
+}
+
+.sg-template-example {
+	font-size: 0.6875rem;
+	color: var(--text-tertiary);
+	background: var(--surface-elevated);
+	border-radius: 6px;
+	border: 1px solid var(--border);
+	padding: 10px 12px;
+	margin: 0;
+	white-space: pre-wrap;
+	line-height: 1.5;
+}
+
+.sg-info-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 6px 12px 6px;
+}
+
+.sg-info-label {
+	font-size: 0.6875rem;
+	color: var(--text-tertiary);
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+}
+
+.sg-info-wrap {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+}
+
+.sg-info-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 999px;
+	border: 1px solid var(--border);
+	background: var(--surface);
+	color: var(--text-secondary);
+	cursor: help;
+}
+
+.sg-info-icon:hover {
+	color: var(--text);
+}
+
+.sg-info-tooltip {
+	position: absolute;
+	right: 0;
+	top: calc(100% + 8px);
+	min-width: 260px;
+	max-width: 320px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	padding: 10px;
+	box-shadow: var(--shadow-sm);
+	opacity: 0;
+	transform: translateY(-4px);
+	pointer-events: none;
+	transition: opacity 0.15s ease, transform 0.15s ease;
+	z-index: 2;
+}
+
+.sg-info-tooltip::before,
+.sg-info-tooltip::after {
+	content: '';
+	position: absolute;
+	right: 12px;
+	width: 0;
+	height: 0;
+	border-style: solid;
+}
+
+.sg-info-tooltip::before {
+	top: -8px;
+	border-width: 0 8px 8px 8px;
+	border-color: transparent transparent var(--border) transparent;
+}
+
+.sg-info-tooltip::after {
+	top: -7px;
+	border-width: 0 7px 7px 7px;
+	border-color: transparent transparent var(--surface) transparent;
+}
+
+.sg-info-wrap:hover .sg-info-tooltip,
+.sg-info-wrap:focus-within .sg-info-tooltip {
+	opacity: 1;
+	transform: translateY(0);
+	pointer-events: auto;
+}
+
+.sg-info-tooltip .sg-template-example {
+	margin: 6px 0 0;
+}
+
+.sg-syntax-help {
+	display: grid;
+	gap: 6px;
+	margin: 0 0 10px;
+}
+
+.sg-syntax-row {
+	display: grid;
+	grid-template-columns: auto 1fr auto;
+	align-items: center;
+	column-gap: 8px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	border: 1px solid var(--border);
+	background: var(--surface);
+	font-size: 0.6875rem;
+}
+
+.sg-syntax-tag {
+	font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+	font-size: 0.6875rem;
+	padding: 2px 8px;
+	border-radius: 999px;
+	border: 1px solid var(--border);
+	background: var(--surface-elevated);
+	color: var(--text);
+	white-space: nowrap;
+}
+
+.sg-syntax-label {
+	color: var(--text-secondary);
+	white-space: nowrap;
+}
+
+.sg-syntax-note {
+	font-size: 0.625rem;
+	color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 14%, transparent);
+	border-radius: 999px;
+	padding: 2px 6px;
+	letter-spacing: 0.02em;
+	white-space: nowrap;
+}
+
+.sg-syntax-row-nested {
+	padding-left: 18px;
+	position: relative;
+}
+
+.sg-syntax-row-nested::before {
+	content: '';
+	position: absolute;
+	left: 6px;
+	top: 12px;
+	width: 10px;
+	height: 10px;
+	border-left: 2px solid var(--accent);
+	border-bottom: 2px solid var(--accent);
+}
+
+/* Action row (for Save/Reload buttons) */
+.sg-action-row {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	padding: 6px 0 0;
+}
+
+/* Preset management */
+.sg-preset-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px;
+}
+
+.sg-preset-row .preset-dropdown-wrap {
+	flex: 1;
+}
+
+.sg-preset-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 8px 12px;
+}
+
+.sg-preset-item + .sg-preset-item {
+	border-top: 1px dashed var(--border);
+}
+
+.sg-preset-name {
+	font-size: 0.8125rem;
+	color: var(--text);
+	flex: 1;
+	min-width: 0;
+}
+
+.sg-preset-actions {
+	display: flex;
+	gap: 6px;
+}
+
+/* Wipe confirmation inline */
+.sg-confirm-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 12px 12px;
+	animation: esFadeIn 150ms ease;
+}
+
+.sg-confirm-text {
+	font-size: 0.6875rem;
+	color: var(--missed);
+	flex: 1;
+}
+
+@media (hover: none) {
+	.sg-delete-btn {
+		opacity: 1;
+	}
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+	.settings-modal-extended {
+		max-width: 100%;
+		width: 100%;
+		height: 100dvh;
+		max-height: 100dvh;
+		border-radius: 0;
+	}
+
+	.settings-modal-extended .modal-content {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		min-height: auto;
+	}
+
+	.settings-modal-extended .modal-header {
+		padding-top: calc(10px + var(--safe-top));
+		padding-left: calc(14px + var(--safe-left));
+		padding-right: calc(14px + var(--safe-right));
+	}
+
+	.settings-modal-extended .modal-content {
+		padding-left: calc(16px + var(--safe-left));
+		padding-right: calc(16px + var(--safe-right));
+		padding-bottom: calc(16px + var(--safe-bottom));
+	}
+
+	.sc-segment {
+		font-size: 0.75rem;
+		padding: 6px 8px;
+	}
+
+	.sr-row {
+		padding: 10px 12px;
+	}
+
+	.sg-header {
+		padding: 0 12px 6px;
+	}
+
+	.es-trigger {
+		padding: 10px 12px;
+	}
+
+	.es-content {
+		padding: 0 12px 12px;
+	}
+
+	.sg-input-row {
+		padding: 8px 12px;
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.sg-preset-row {
+		padding: 8px 12px;
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.sg-preset-item {
+		padding: 8px 12px;
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.sg-confirm-row {
+		padding: 8px 12px 12px;
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.sg-action-row {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.sg-preset-actions {
+		width: 100%;
+		flex-wrap: wrap;
+		justify-content: flex-end;
+	}
+
+	.sg-ide {
+		grid-template-columns: 36px 1fr;
+		max-height: 50vh;
+	}
+
+	.sg-textarea {
+		max-height: 50vh;
+	}
+}
+
+/* ==========================================================================
+   PASSPHRASE CHANGE
+   ========================================================================== */
+
+.passphrase-form {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.passphrase-input {
+	padding: 8px 10px;
+	background: transparent;
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	font-size: 0.875rem;
+	color: var(--text);
+	width: 100%;
+}
+
+.passphrase-input:focus {
+	border-color: var(--accent);
+	outline: none;
+}
+
+.passphrase-input::placeholder {
+	color: var(--text-tertiary);
+}
+
+.passphrase-input:disabled {
+	opacity: 0.5;
+}
+
+/* ==========================================================================
+   RESPONSIVE LAYOUT
+   Gradual adaptation across breakpoints
+   ========================================================================== */
+
+/* Tablet landscape / smaller desktop */
+/* ==========================================================================
+   11. RESPONSIVE BREAKPOINTS
+   Tablet and mobile adaptations
+   ========================================================================== */
+@media (max-width: 1024px) {
+	.page-container {
+		padding: 0 var(--page-padding-tablet);
+	}
+}
+
+/* Tablet portrait */
+@media (max-width: 860px) {
+	.page-container {
+		padding: 0 var(--page-padding-mobile);
+	}
+
+	.page-header {
+		padding: 48px 0 24px;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 12px;
+	}
+
+	.block-controls {
+		display: none;
+	}
+
+	.toggle-header {
+		padding: 8px 6px;
+		border-radius: 6px;
+	}
+
+	.toggle-header:active {
+		background: rgba(55, 53, 47, 0.06);
+	}
+
+	.dark .toggle-header:active {
+		background: rgba(255, 255, 255, 0.06);
+	}
+
+	.sidebar {
+		width: min(100%, var(--sidebar-width-mobile));
+		max-width: var(--sidebar-width-mobile);
+	}
+
+	.progress-pill {
+		bottom: calc(12px + var(--safe-bottom));
+		right: calc(12px + var(--safe-right));
+	}
+
+	.theme-btn {
+		bottom: calc(12px + var(--safe-bottom));
+		left: calc(12px + var(--safe-left));
+	}
+
+	.nav-btn.back {
+		bottom: calc(12px + var(--safe-bottom));
+		left: calc(12px + var(--safe-left));
+	}
+
+	.field-input {
+		min-height: 3em;
+		padding: 8px 10px;
+		font-size: 1rem;
+	}
+
+	.field-block {
+		margin-bottom: 8px;
+	}
+}
+
+@media (hover: none) {
+	.edge-trigger {
+		display: none;
+	}
+
+	.sidebar-overlay {
+		display: block;
+	}
+}
+
+@media (max-width: 860px) {
+	.sidebar-overlay {
+		display: block;
+	}
+}
+
+@media (max-width: 600px) {
+	.page-actions {
+		flex-direction: column;
+		align-items: stretch;
+		width: 100%;
+	}
+
+	.page-actions-group {
+		flex-direction: column;
+		align-items: stretch;
+		width: 100%;
+	}
+
+	.page-actions .dropdown {
+		width: 100%;
+	}
+}
+
+@media (min-width: 520px) and (max-width: 600px) {
+	.page-actions-group {
+		flex-direction: row;
+		flex-wrap: wrap;
+	}
+
+	.page-actions-group .dropdown {
+		flex: 1 1 220px;
+	}
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+	.page-container {
+		padding: 0 var(--page-padding-small);
+	}
+
+	.page-header {
+		padding: 32px 0 16px;
+	}
+
+	.page-meta {
+		flex-wrap: wrap;
+		row-gap: 4px;
+		max-width: 100%;
+	}
+
+	.page-location {
+		max-width: 100%;
+		word-break: break-word;
+	}
+
+	.progress-pill {
+		bottom: calc(8px + var(--safe-bottom));
+		right: calc(8px + var(--safe-right));
+		font-size: 0.6875rem;
+		padding: 4px 8px;
+	}
+
+	.theme-btn {
+		bottom: calc(8px + var(--safe-bottom));
+		left: calc(8px + var(--safe-left));
+		width: 40px;
+		height: 40px;
+	}
+
+	.nav-btn.back {
+		bottom: calc(8px + var(--safe-bottom));
+		left: calc(8px + var(--safe-left));
+		width: 40px;
+		height: 40px;
+	}
+
+	.entry-page .nav-btn.back {
+		left: auto;
+		right: calc(8px + var(--safe-right));
+	}
+
+	.sidebar-toggle {
+		top: calc(8px + var(--safe-top));
+		right: calc(8px + var(--safe-right));
+		width: 40px;
+		height: 40px;
+	}
+
+	.save-section {
+		margin-top: 32px;
+		padding-top: 16px;
+	}
+
+	.save-btn {
+		width: 100%;
+		padding: 12px 20px;
+	}
+
+	.location-dropdown-menu {
+		min-width: 160px;
+	}
+
+	.sidebar {
+		width: 100%;
+		max-width: 100%;
+	}
+
+	.sr-row {
+		min-height: 44px;
+	}
+
+	.sr-subtitle {
+		white-space: normal;
+	}
+
+	.sg-manual-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.sg-action-row .sg-btn,
+	.sg-preset-actions .sg-btn {
+		width: 100%;
+		justify-content: center;
+	}
+
+	.tracker-day {
+		width: 11px;
+		height: 11px;
+	}
+
+	.recent-item {
+		min-height: 44px;
+	}
+
+	.gps-capture-btn {
+		width: 40px;
+		height: 40px;
+	}
+
+	.sg-input,
+	.sg-ide-textarea {
+		font-size: 1rem;
+	}
+}

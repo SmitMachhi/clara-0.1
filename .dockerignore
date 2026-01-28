@@ -1,0 +1,14 @@
+.DS_Store
+.env
+.env.*
+.git
+.svelte-kit
+build
+data
+node_modules
+npm-debug.log
+pnpm-debug.log
+yarn-debug.log
+yarn-error.log
+*.log
+coverage
