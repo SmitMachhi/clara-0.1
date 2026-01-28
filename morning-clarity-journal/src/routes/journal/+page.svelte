@@ -266,9 +266,7 @@
 		}
 	}
 
-	$effect(() => {
-		if (hasEntryToday) goto(`/entry/${today}`);
-	});
+
 
 	$effect(() => {
 		if (!isMounted || hasEntryToday) return;
@@ -283,16 +281,14 @@
 	});
 </script>
 
-{#if isLoadingData}
-	<div class="notion-page">
+<div class="notion-page">
+	{#if isLoadingData}
 		<div class="main-area">
 			<main class="content">
 				<div class="message-container"><Spinner /></div>
 			</main>
 		</div>
-	</div>
-{:else if loadError}
-	<div class="notion-page">
+	{:else if loadError}
 		<div class="main-area">
 			<main class="content">
 				<div class="message-container">
@@ -302,9 +298,7 @@
 				</div>
 			</main>
 		</div>
-	</div>
-{:else if isPastTime && !hasEntryToday}
-	<div class="notion-page">
+	{:else if isPastTime && !hasEntryToday}
 		<div class="main-area">
 			<main class="content">
 				<div class="message-container">
@@ -313,17 +307,24 @@
 				</div>
 			</main>
 		</div>
-	</div>
-{:else if hasEntryToday}
-	<div class="notion-page">
+	{:else if hasEntryToday}
 		<div class="main-area">
 			<main class="content">
-				<div class="message-container"><Spinner /></div>
+				<div class="message-container">
+					<h2 class="message-title">You've completed today's journal</h2>
+					<p class="message-text">Great work maintaining your practice. See you tomorrow!</p>
+					<div class="completion-actions">
+						<button type="button" class="primary-btn" onclick={() => goto(`/entry/${today}`)}>
+							View today's entry
+						</button>
+						<button type="button" class="secondary-btn" onclick={() => sidebarOpen = true}>
+							Browse archive
+						</button>
+					</div>
+				</div>
 			</main>
 		</div>
-	</div>
-{:else}
-	<div class="notion-page">
+	{:else}
 		<div class="main-area">
 			<main class="content">
 				{#if template}
@@ -353,17 +354,18 @@
 				</div>
 			{/if}
 		</div>
-		<JournalSidebar
-			{entries} {entryDates} {yearDates} {currentYear}
-			{sidebarOpen} {settingsOpen}
-			onToggleSidebar={() => sidebarOpen = !sidebarOpen}
-			onCloseSidebar={() => sidebarOpen = false}
-			onOpenSidebar={() => sidebarOpen = true}
-			onOpenSettings={() => settingsOpen = !settingsOpen}
-			onViewEntry={(date) => goto(`/entry/${date}`)}
-		/>
-	</div>
-{/if}
+	{/if}
+
+	<JournalSidebar
+		{entries} {entryDates} {yearDates} {currentYear}
+		{sidebarOpen} {settingsOpen}
+		onToggleSidebar={() => sidebarOpen = !sidebarOpen}
+		onCloseSidebar={() => sidebarOpen = false}
+		onOpenSidebar={() => sidebarOpen = true}
+		onOpenSettings={() => settingsOpen = !settingsOpen}
+		onViewEntry={(date) => goto(`/entry/${date}`)}
+	/>
+</div>
 <SettingsModal
 	open={settingsOpen}
 	{locations}
@@ -372,3 +374,18 @@
 	onTemplateChanged={handleTemplateChanged}
 	onQuotesChanged={handleQuotesChanged}
 />
+
+<style>
+	.completion-actions {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
+		margin-top: var(--space-lg);
+	}
+
+	@media (min-width: 600px) {
+		.completion-actions {
+			flex-direction: row;
+		}
+	}
+</style>

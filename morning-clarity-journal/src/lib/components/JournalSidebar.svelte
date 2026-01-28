@@ -66,6 +66,13 @@
 				<div class="sidebar-stats">{stats.completedCount} of {stats.total} days</div>
 			</div>
 			<button
+				class="sidebar-close-btn"
+				onclick={(e) => { e.stopPropagation(); onCloseSidebar(); }}
+				aria-label="Close sidebar"
+			>
+				<Icon name="close" size={16} />
+			</button>
+			<button
 				class="settings-btn"
 				onclick={(e) => { e.stopPropagation(); onOpenSettings(); }}
 				aria-label="Settings"
@@ -131,3 +138,22 @@
 		onmouseenter={() => onOpenSidebar()}
 	></div>
 {/if}
+
+<style>
+	.sidebar-close-btn {
+		width: 28px;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--text-tertiary);
+		border-radius: 4px;
+		transition: all 0.1s;
+		margin-right: 8px;
+	}
+
+	.sidebar-close-btn:hover {
+		background: var(--surface-elevated);
+		color: var(--text);
+	}
+</style>
