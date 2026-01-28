@@ -1,7 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getEntryByDate, getTemplateById } from '$lib/db.js';
-import { decrypt } from '$lib/server/crypto.js';
+import { getEntryWithTemplate } from '$lib/db.js';
 import { noStoreHeaders } from '$lib/api-helpers.js';
 
 function isValidDateFormat(dateStr: string): boolean {
@@ -23,20 +22,13 @@ export const GET: RequestHandler = async ({ params }) => {
 		return new Response('Invalid date format', { status: 400, headers: noStoreHeaders() });
 	}
 
-	const entry = getEntryByDate(params.date);
+	const result = getEntryWithTemplate(params.date);
 
-	if (!entry) {
+	if (!result) {
 		return new Response('Entry not found', { status: 404, headers: noStoreHeaders() });
 	}
 
-	const encryptedStr = entry.rawData.toString('utf8');
-	const data = JSON.parse(decrypt(encryptedStr));
-	const templateId = entry.template_id;
-	const template = templateId ? getTemplateById(templateId) : null;
-
-	if (!template) {
-		return new Response('Failed to load template', { status: 500, headers: noStoreHeaders() });
-	}
+	const { entry, template, warning } = result;
 
 	return json({
 		id: entry.id,
@@ -46,9 +38,10 @@ export const GET: RequestHandler = async ({ params }) => {
 		captured_lat: entry.captured_lat,
 		captured_lng: entry.captured_lng,
 		quote_text: entry.quote_text ?? null,
-		template_id: templateId,
+		template_id: entry.template_id,
 		created_at: entry.created_at,
-		data,
-		template: template.parsed
+		data: entry.data,
+		template,
+		warning
 	}, { headers: noStoreHeaders() });
 };

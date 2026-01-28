@@ -53,7 +53,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (!preset) {
 			return errorResponse('Preset not found', 404);
 		}
-		const templateId = createTemplateVersion(preset.sourceText, preset.parsed);
+		const templateId = createTemplateVersion(preset.sourceText);
 		setActiveTemplate(templateId);
 		return successResponse({ id: templateId });
 	}
@@ -94,11 +94,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (presets.length >= MAX_PRESETS) {
 			return errorResponse('Preset limit reached');
 		}
-		const { parsed, errors } = parseTemplateSource(sourceText);
-		if (errors.length > 0) {
-			return json({ error: 'Invalid template', details: errors }, { status: 400 });
-		}
-		const presetId = createTemplatePreset(trimmed, sourceText, parsed);
+		const presetId = createTemplatePreset(trimmed, sourceText);
 		return successResponse({ id: presetId });
 	}
 
@@ -106,13 +102,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		return errorResponse('Invalid template');
 	}
 
-	const { parsed, errors } = parseTemplateSource(sourceText);
-	if (errors.length > 0) {
-		return json({ error: 'Invalid template', details: errors }, { status: 400 });
-	}
-
 	try {
-		const id = createTemplateVersion(sourceText, parsed);
+		const id = createTemplateVersion(sourceText);
 		setActiveTemplate(id);
 		return successResponse({ id });
 	} catch {

@@ -2,6 +2,9 @@ import type Database from 'better-sqlite3';
 import { runMigrations } from './schema-migrations.js';
 
 export function initializeSchema(db: Database.Database): void {
+	// NOTE: parsed_json and parsed_json_encrypted columns in templates/template_presets tables are deprecated
+	// They will be removed in a future migration after all code stops using them
+	// For now, keep them populated with EMPTY_TEXT_PLACEHOLDER for backward compatibility
 	db.exec(`
 		CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT);
 		CREATE TABLE IF NOT EXISTS entries (

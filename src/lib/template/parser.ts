@@ -172,14 +172,12 @@ export function parseTemplateSource(
 				errors.push(`Empty tag content on line ${mpLine}`);
 				continue;
 			}
-			if (mpPlaceholder === null) continue;
-
 			fieldIndex += 1;
 			const mpFieldId = `f${fieldIndex}`;
 			question.fields.push({
 				id: mpFieldId,
 				label: mpText,
-				placeholder: mpPlaceholder,
+				placeholder: mpPlaceholder ?? '',
 				type: 'mp'
 			});
 			fieldIds.push(mpFieldId);

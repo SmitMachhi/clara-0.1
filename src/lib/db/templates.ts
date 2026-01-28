@@ -1,4 +1,5 @@
 import { decrypt, encrypt } from '$lib/server/crypto.js';
+import { parseTemplateSource } from '../template.js';
 import type { TemplateModel } from '../template.js';
 import { EMPTY_TEXT_PLACEHOLDER, getDb } from './connection.js';
 import {
@@ -11,37 +12,31 @@ import {
 } from './template-utils.js';
 import type { TemplatePresetSummary } from './types.js';
 
-export function createTemplateVersion(sourceText: string, parsed: TemplateModel): number {
+export function createTemplateVersion(sourceText: string): number {
 	const database = getDb();
 	const encrypted = encrypt(sourceText);
 	const encryptedBuffer = Buffer.from(encrypted, 'utf8');
-	const parsedJson = JSON.stringify(parsed);
-	const parsedJsonEncrypted = encrypt(parsedJson);
-	const parsedJsonEncryptedBuffer = Buffer.from(parsedJsonEncrypted, 'utf8');
 	const result = database.prepare(`
 		INSERT INTO templates (source_text_encrypted, parsed_json,
 			parsed_json_encrypted)
 		VALUES (?, ?, ?)
-	`).run(encryptedBuffer, EMPTY_TEXT_PLACEHOLDER, parsedJsonEncryptedBuffer);
+	`).run(encryptedBuffer, EMPTY_TEXT_PLACEHOLDER, EMPTY_TEXT_PLACEHOLDER);
 	return result.lastInsertRowid as number;
 }
 
-export function createTemplatePreset(
-	name: string,
-	sourceText: string,
-	parsed: TemplateModel
-): number {
+export function createTemplatePreset(name: string, sourceText: string): number {
 	const database = getDb();
+	const { errors } = parseTemplateSource(sourceText);
+	if (errors.length > 0) {
+		throw new Error(`Invalid template: ${errors.join(', ')}`);
+	}
 	const encrypted = encrypt(sourceText);
 	const encryptedBuffer = Buffer.from(encrypted, 'utf8');
-	const parsedJson = JSON.stringify(parsed);
-	const parsedJsonEncrypted = encrypt(parsedJson);
-	const parsedJsonEncryptedBuffer = Buffer.from(parsedJsonEncrypted, 'utf8');
 	const result = database.prepare(`
 		INSERT INTO template_presets (name, source_text_encrypted,
 			parsed_json, parsed_json_encrypted)
 		VALUES (?, ?, ?, ?)
-	`).run(name, encryptedBuffer, EMPTY_TEXT_PLACEHOLDER, parsedJsonEncryptedBuffer);
+	`).run(name, encryptedBuffer, EMPTY_TEXT_PLACEHOLDER, EMPTY_TEXT_PLACEHOLDER);
 	return result.lastInsertRowid as number;
 }
 
@@ -59,26 +54,26 @@ export function getTemplatePresetById(
 ): { id: number; name: string; sourceText: string; parsed: TemplateModel } | null {
 	const database = getDb();
 	const row = database.prepare(`
-		SELECT id, name, source_text_encrypted, parsed_json_encrypted
+		SELECT id, name, source_text_encrypted
 		FROM template_presets
 		WHERE id = ?
 	`).get(id) as {
 		id: number;
 		name: string;
 		source_text_encrypted: Buffer;
-		parsed_json_encrypted: Buffer;
 	} | undefined;
 
 	if (!row) return null;
 
-	const decrypted = decrypt(row.source_text_encrypted.toString('utf8'));
-	const parsedJson = decrypt(row.parsed_json_encrypted.toString('utf8'));
-	return {
-		id: row.id,
-		name: row.name,
-		sourceText: decrypted,
-		parsed: JSON.parse(parsedJson) as TemplateModel
-	};
+	const sourceText = decrypt(row.source_text_encrypted.toString('utf8'));
+	const { parsed, errors } = parseTemplateSource(sourceText);
+
+	if (errors.length > 0) {
+		console.error(`Preset ${id} has invalid template:`, errors);
+		return null;
+	}
+
+	return { id: row.id, name: row.name, sourceText, parsed };
 }
 
 export function renameTemplatePreset(id: number, name: string): boolean {

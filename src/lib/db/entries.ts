@@ -1,5 +1,9 @@
+import { decrypt } from '$lib/server/crypto.js';
 import { getDb } from './connection.js';
 import { getLocationById, getLocations } from './locations.js';
+import { getTemplateById, ensureActiveTemplate, getActiveTemplate } from './template-utils.js';
+import { parseTemplateSource } from '../template.js';
+import type { TemplateModel } from '../template.js';
 import {
 	decryptOptionalNumber,
 	decryptOptionalString,
@@ -7,6 +11,86 @@ import {
 	encryptOptionalString
 } from './crypto-helpers.js';
 import type { Entry, EntryWithData } from './types.js';
+
+export interface EntryWithTemplate {
+	entry: EntryWithData;
+	template: TemplateModel;
+	warning?: string;
+}
+
+/**
+ * Get an entry with its associated template.
+ * Prefers the entry's original template, falls back to active template.
+ */
+export function getEntryWithTemplate(date: string): EntryWithTemplate | null {
+	const database = getDb();
+
+	const row = database.prepare(`
+		SELECT e.*, t.source_text_encrypted as template_source
+		FROM entries e
+		LEFT JOIN templates t ON e.template_id = t.id
+		WHERE e.date = ?
+	`).get(date) as {
+		id: number;
+		date: string;
+		timestamp: string;
+		encrypted_data: Buffer;
+		template_id: number | null;
+		template_source: Buffer | null;
+		location_id_encrypted: Buffer | null;
+		captured_lat_encrypted: Buffer | null;
+		captured_lng_encrypted: Buffer | null;
+		quote_id_encrypted: Buffer | null;
+		quote_text_encrypted: Buffer | null;
+		created_at: string;
+	} | undefined;
+
+	if (!row) return null;
+
+	const decrypted = decrypt(row.encrypted_data.toString('utf8'));
+	const locationId = decryptOptionalNumber(row.location_id_encrypted);
+	const location = locationId != null ? getLocationById(locationId) : null;
+	const entry: EntryWithData = {
+		id: row.id,
+		date: row.date,
+		timestamp: row.timestamp,
+		data: JSON.parse(decrypted),
+		location_id: locationId,
+		location_name: location?.name,
+		captured_lat: decryptOptionalNumber(row.captured_lat_encrypted),
+		captured_lng: decryptOptionalNumber(row.captured_lng_encrypted),
+		quote_id: decryptOptionalNumber(row.quote_id_encrypted),
+		quote_text: decryptOptionalString(row.quote_text_encrypted) ?? undefined,
+		template_id: row.template_id,
+		created_at: row.created_at
+	};
+
+	if (row.template_id && row.template_source) {
+		const sourceText = decrypt(row.template_source.toString('utf8'));
+		const { parsed, errors } = parseTemplateSource(sourceText);
+
+		if (errors.length === 0) {
+			return { entry, template: parsed };
+		}
+	}
+
+	const activeTemplate = getActiveTemplate(database);
+	if (!activeTemplate) {
+		const defaultId = ensureActiveTemplate(database);
+		const defaultTemplate = getTemplateById(database, defaultId)!;
+		return {
+			entry,
+			template: defaultTemplate.parsed,
+			warning: 'Original template not found, using default'
+		};
+	}
+
+	return {
+		entry,
+		template: activeTemplate.parsed,
+		warning: row.template_id ? 'Original template corrupted, using current' : undefined
+	};
+}
 
 /**
  * Build a map of location IDs to location names for efficient lookup.

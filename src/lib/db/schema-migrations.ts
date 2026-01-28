@@ -139,3 +139,18 @@ export function runMigrations(db: Database.Database): void {
 	ensureTemplatePresetSeed(db);
 	migrateEncryptedDataToNewKey(db);
 }
+
+/**
+ * FUTURE MIGRATION: Remove parsed_json columns
+ * This should be run after all code stops referencing these columns
+ *
+ * Steps:
+ * 1. Create new tables without parsed_json columns
+ * 2. Copy data from old tables
+ * 3. Drop old tables
+ * 4. Rename new tables
+ *
+ * This requires table recreation in SQLite
+ */
+export function migrateRemoveParsedJsonColumns(db: Database.Database): void {
+}

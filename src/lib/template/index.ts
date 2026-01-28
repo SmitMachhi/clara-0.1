@@ -1,3 +1,4 @@
 export * from './types.js';
 export * from './parser.js';
-export * from './data.js';
+export { DEFAULT_TEMPLATE_TEXT, TEMPLATE_VERSION } from './constants.js';
+export { createEmptyFormData, validateFormData } from './utils.js';

@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { decrypt, encrypt } from '$lib/server/crypto.js';
-import { parseTemplateSource, serializeDefaultTemplate } from '../template.js';
+import { parseTemplateSource, DEFAULT_TEMPLATE_TEXT } from '../template.js';
 import type { TemplateModel } from '../template.js';
 import { EMPTY_TEXT_PLACEHOLDER } from './connection.js';
 
@@ -15,16 +15,23 @@ export function getTemplateById(
 	id: number
 ): { id: number; sourceText: string; parsed: TemplateModel } | null {
 	const row = database.prepare(
-		'SELECT id, source_text_encrypted, parsed_json_encrypted FROM templates WHERE id = ?'
+		'SELECT id, source_text_encrypted FROM templates WHERE id = ?'
 	).get(id) as {
 		id: number;
 		source_text_encrypted: Buffer;
-		parsed_json_encrypted: Buffer;
 	} | undefined;
+
 	if (!row) return null;
-	const decrypted = decrypt(row.source_text_encrypted.toString('utf8'));
-	const parsedJson = decrypt(row.parsed_json_encrypted.toString('utf8'));
-	return { id: row.id, sourceText: decrypted, parsed: JSON.parse(parsedJson) as TemplateModel };
+
+	const sourceText = decrypt(row.source_text_encrypted.toString('utf8'));
+	const { parsed, errors } = parseTemplateSource(sourceText);
+
+	if (errors.length > 0) {
+		console.error(`Template ${id} has invalid source:`, errors);
+		return null;
+	}
+
+	return { id: row.id, sourceText, parsed };
 }
 
 export function getActiveTemplate(
@@ -52,20 +59,19 @@ export function ensureActiveTemplate(database: Database.Database): number {
 		setActiveTemplate(database, row.id);
 		return row.id;
 	}
-	const sourceText = serializeDefaultTemplate();
+	const sourceText = DEFAULT_TEMPLATE_TEXT;
 	const parseResult = parseTemplateSource(sourceText);
 	if (parseResult.errors.length > 0) {
-		throw new Error('Default template failed validation');
+		throw new Error(`Default template failed validation: ${parseResult.errors.join(', ')}`);
 	}
 	const encrypted = encrypt(sourceText);
-	const parsedJsonEncrypted = encrypt(JSON.stringify(parseResult.parsed));
 	const result = database.prepare(
 		'INSERT INTO templates (source_text_encrypted, parsed_json, parsed_json_encrypted)' +
 		' VALUES (?, ?, ?)'
 	).run(
 		Buffer.from(encrypted, 'utf8'),
 		EMPTY_TEXT_PLACEHOLDER,
-		Buffer.from(parsedJsonEncrypted, 'utf8')
+		EMPTY_TEXT_PLACEHOLDER
 	);
 	const id = result.lastInsertRowid as number;
 	setActiveTemplate(database, id);

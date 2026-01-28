@@ -10,126 +10,148 @@ export function migrateEncryptedDataToNewKey(database: Database.Database): void 
 		"SELECT value FROM config WHERE key = 'encryption_key_migrated_v2'"
 	).get() as { value: string } | undefined;
 	if (migrationDone?.value === 'true') return;
-	const migrate = database.transaction(() => {
-		// Use iterate() instead of all() to avoid loading full tables into memory
-		const reEncryptRow = (blob: Buffer): Buffer => {
-			const stored = blob.toString('utf8');
+	const reEncryptRow = (blob: Buffer): Buffer => {
+		const stored = blob.toString('utf8');
+		try {
+			const plaintext = decryptWithLegacyKey(stored);
+			return Buffer.from(encrypt(plaintext), 'utf8');
+		} catch {
 			try {
-				const plaintext = decryptWithLegacyKey(stored);
-				return Buffer.from(encrypt(plaintext), 'utf8');
+				decrypt(stored);
+				return blob;
 			} catch {
-				try {
-					decrypt(stored);
-					return blob;
-				} catch {
-					throw new Error('Encrypted data unreadable with both legacy and current keys');
-				}
+				throw new Error('Encrypted data unreadable with both legacy and current keys');
 			}
-		};
-		const updateEntry = database.prepare(
-			'UPDATE entries SET encrypted_data = ?, captured_lat_encrypted = ?,' +
-			' captured_lng_encrypted = ?, location_id_encrypted = ?,' +
-			' quote_id_encrypted = ?, quote_text_encrypted = ? WHERE id = ?'
-		);
-		const selectEntries = database.prepare(
-			'SELECT id, encrypted_data, captured_lat_encrypted, captured_lng_encrypted,' +
-			' location_id_encrypted, quote_id_encrypted, quote_text_encrypted FROM entries'
-		);
-		for (const row of selectEntries.iterate() as Iterable<{
+		}
+	};
+
+	// Process entries: collect IDs first to avoid cursor conflicts, then batch update
+	const entryIds = database.prepare('SELECT id FROM entries').pluck().all() as number[];
+	const updateEntry = database.prepare(
+		'UPDATE entries SET encrypted_data = ?, captured_lat_encrypted = ?,' +
+		' captured_lng_encrypted = ?, location_id_encrypted = ?,' +
+		' quote_id_encrypted = ?, quote_text_encrypted = ? WHERE id = ?'
+	);
+	const selectEntry = database.prepare(
+		'SELECT id, encrypted_data, captured_lat_encrypted, captured_lng_encrypted,' +
+		' location_id_encrypted, quote_id_encrypted, quote_text_encrypted FROM entries WHERE id = ?'
+	);
+	for (const id of entryIds) {
+		const row = selectEntry.get(id) as {
 			id: number; encrypted_data: Buffer;
 			captured_lat_encrypted: Buffer | null; captured_lng_encrypted: Buffer | null;
 			location_id_encrypted: Buffer | null;
 			quote_id_encrypted: Buffer | null;
 			quote_text_encrypted: Buffer | null;
-		}>) {
-			const newData = reEncryptRow(row.encrypted_data);
-			const newLat = row.captured_lat_encrypted ? reEncryptRow(row.captured_lat_encrypted) : null;
-			const newLng = row.captured_lng_encrypted ? reEncryptRow(row.captured_lng_encrypted) : null;
-			const newLocationId = row.location_id_encrypted ? reEncryptRow(row.location_id_encrypted) : null;
-			const newQuoteId = row.quote_id_encrypted ? reEncryptRow(row.quote_id_encrypted) : null;
-			const newQuoteText = row.quote_text_encrypted ? reEncryptRow(row.quote_text_encrypted) : null;
-			updateEntry.run(newData, newLat, newLng, newLocationId, newQuoteId, newQuoteText, row.id);
-		}
-		const updateQuote = database.prepare(
-			'UPDATE quotes SET text_encrypted = ? WHERE id = ?'
-		);
-		const selectQuotes = database.prepare(
-			'SELECT id, text_encrypted FROM quotes'
-		);
-		for (const row of selectQuotes.iterate() as Iterable<{ id: number; text_encrypted: Buffer }>) {
-			const newText = reEncryptRow(row.text_encrypted);
-			updateQuote.run(newText, row.id);
-		}
-		const updateDailyQuote = database.prepare(
-			'UPDATE daily_quotes SET quote_id_encrypted = ?, quote_text_encrypted = ? WHERE date = ?'
-		);
-		const selectDailyQuotes = database.prepare(
-			'SELECT date, quote_id_encrypted, quote_text_encrypted FROM daily_quotes'
-		);
-		for (const row of selectDailyQuotes.iterate() as Iterable<{
+		};
+		const newData = reEncryptRow(row.encrypted_data);
+		const newLat = row.captured_lat_encrypted ? reEncryptRow(row.captured_lat_encrypted) : null;
+		const newLng = row.captured_lng_encrypted ? reEncryptRow(row.captured_lng_encrypted) : null;
+		const newLocationId = row.location_id_encrypted ? reEncryptRow(row.location_id_encrypted) : null;
+		const newQuoteId = row.quote_id_encrypted ? reEncryptRow(row.quote_id_encrypted) : null;
+		const newQuoteText = row.quote_text_encrypted ? reEncryptRow(row.quote_text_encrypted) : null;
+		updateEntry.run(newData, newLat, newLng, newLocationId, newQuoteId, newQuoteText, row.id);
+	}
+
+	// Process quotes
+	const quoteIds = database.prepare('SELECT id FROM quotes').pluck().all() as number[];
+	const updateQuote = database.prepare('UPDATE quotes SET text_encrypted = ? WHERE id = ?');
+	const selectQuote = database.prepare('SELECT id, text_encrypted FROM quotes WHERE id = ?');
+	for (const id of quoteIds) {
+		const row = selectQuote.get(id) as { id: number; text_encrypted: Buffer };
+		const newText = reEncryptRow(row.text_encrypted);
+		updateQuote.run(newText, row.id);
+	}
+
+	// Process daily_quotes
+	const dailyQuoteDates = database.prepare('SELECT date FROM daily_quotes').pluck().all() as string[];
+	const updateDailyQuote = database.prepare(
+		'UPDATE daily_quotes SET quote_id_encrypted = ?, quote_text_encrypted = ? WHERE date = ?'
+	);
+	const selectDailyQuote = database.prepare(
+		'SELECT date, quote_id_encrypted, quote_text_encrypted FROM daily_quotes WHERE date = ?'
+	);
+	for (const date of dailyQuoteDates) {
+		const row = selectDailyQuote.get(date) as {
 			date: string;
 			quote_id_encrypted: Buffer | null;
 			quote_text_encrypted: Buffer;
-		}>) {
-			const newQuoteId = row.quote_id_encrypted ? reEncryptRow(row.quote_id_encrypted) : null;
-			const newQuoteText = reEncryptRow(row.quote_text_encrypted);
-			updateDailyQuote.run(newQuoteId, newQuoteText, row.date);
-		}
-		const updateQuoteSource = database.prepare(
-			'UPDATE quote_sources SET source_text_encrypted = ? WHERE id = ?'
-		);
-		const selectQuoteSources = database.prepare(
-			'SELECT id, source_text_encrypted FROM quote_sources'
-		);
-		for (const row of selectQuoteSources.iterate() as Iterable<{ id: number; source_text_encrypted: Buffer }>) {
-			const newSource = reEncryptRow(row.source_text_encrypted);
-			updateQuoteSource.run(newSource, row.id);
-		}
-		const updateLocation = database.prepare(
-			'UPDATE locations SET name_encrypted = ?, lat_encrypted = ?,' +
-			' lng_encrypted = ?, address_encrypted = ? WHERE id = ?'
-		);
-		const selectLocations = database.prepare(
-			'SELECT id, name_encrypted, lat_encrypted, lng_encrypted, address_encrypted FROM locations'
-		);
-		for (const row of selectLocations.iterate() as Iterable<{
+		};
+		const newQuoteId = row.quote_id_encrypted ? reEncryptRow(row.quote_id_encrypted) : null;
+		const newQuoteText = reEncryptRow(row.quote_text_encrypted);
+		updateDailyQuote.run(newQuoteId, newQuoteText, row.date);
+	}
+
+	// Process quote_sources
+	const quoteSourceIds = database.prepare('SELECT id FROM quote_sources').pluck().all() as number[];
+	const updateQuoteSource = database.prepare(
+		'UPDATE quote_sources SET source_text_encrypted = ? WHERE id = ?'
+	);
+	const selectQuoteSource = database.prepare(
+		'SELECT id, source_text_encrypted FROM quote_sources WHERE id = ?'
+	);
+	for (const id of quoteSourceIds) {
+		const row = selectQuoteSource.get(id) as { id: number; source_text_encrypted: Buffer };
+		const newSource = reEncryptRow(row.source_text_encrypted);
+		updateQuoteSource.run(newSource, row.id);
+	}
+
+	// Process locations
+	const locationIds = database.prepare('SELECT id FROM locations').pluck().all() as number[];
+	const updateLocation = database.prepare(
+		'UPDATE locations SET name_encrypted = ?, lat_encrypted = ?,' +
+		' lng_encrypted = ?, address_encrypted = ? WHERE id = ?'
+	);
+	const selectLocation = database.prepare(
+		'SELECT id, name_encrypted, lat_encrypted, lng_encrypted, address_encrypted FROM locations WHERE id = ?'
+	);
+	for (const id of locationIds) {
+		const row = selectLocation.get(id) as {
 			id: number; name_encrypted: Buffer | null;
 			lat_encrypted: Buffer | null; lng_encrypted: Buffer | null;
 			address_encrypted: Buffer | null;
-		}>) {
-			const newName = row.name_encrypted ? reEncryptRow(row.name_encrypted) : null;
-			const newLat = row.lat_encrypted ? reEncryptRow(row.lat_encrypted) : null;
-			const newLng = row.lng_encrypted ? reEncryptRow(row.lng_encrypted) : null;
-			const newAddr = row.address_encrypted ? reEncryptRow(row.address_encrypted) : null;
-			updateLocation.run(newName, newLat, newLng, newAddr, row.id);
-		}
-		const updateTemplate = database.prepare(
-			'UPDATE templates SET source_text_encrypted = ?, parsed_json_encrypted = ? WHERE id = ?'
-		);
-		const selectTemplates = database.prepare(
-			'SELECT id, source_text_encrypted, parsed_json_encrypted FROM templates'
-		);
-		for (const row of selectTemplates.iterate() as Iterable<{ id: number; source_text_encrypted: Buffer; parsed_json_encrypted: Buffer }>) {
-			const newSource = reEncryptRow(row.source_text_encrypted);
-			const newParsed = reEncryptRow(row.parsed_json_encrypted);
-			updateTemplate.run(newSource, newParsed, row.id);
-		}
-		const updatePreset = database.prepare(
-			'UPDATE template_presets SET source_text_encrypted = ?, parsed_json_encrypted = ? WHERE id = ?'
-		);
-		const selectPresets = database.prepare(
-			'SELECT id, source_text_encrypted, parsed_json_encrypted FROM template_presets'
-		);
-		for (const row of selectPresets.iterate() as Iterable<{ id: number; source_text_encrypted: Buffer; parsed_json_encrypted: Buffer }>) {
-			const newSource = reEncryptRow(row.source_text_encrypted);
-			const newParsed = reEncryptRow(row.parsed_json_encrypted);
-			updatePreset.run(newSource, newParsed, row.id);
-		}
-		const statement = "INSERT INTO config (key, value) VALUES ('encryption_key_migrated_v2'," +
-			" 'true') ON CONFLICT(key) DO UPDATE SET value = 'true'";
-		database.prepare(statement).run();
-	});
-	migrate();
+		};
+		const newName = row.name_encrypted ? reEncryptRow(row.name_encrypted) : null;
+		const newLat = row.lat_encrypted ? reEncryptRow(row.lat_encrypted) : null;
+		const newLng = row.lng_encrypted ? reEncryptRow(row.lng_encrypted) : null;
+		const newAddr = row.address_encrypted ? reEncryptRow(row.address_encrypted) : null;
+		updateLocation.run(newName, newLat, newLng, newAddr, row.id);
+	}
+
+	// Process templates
+	const templateIds = database.prepare('SELECT id FROM templates').pluck().all() as number[];
+	const updateTemplate = database.prepare(
+		'UPDATE templates SET source_text_encrypted = ?, parsed_json_encrypted = ? WHERE id = ?'
+	);
+	const selectTemplate = database.prepare(
+		'SELECT id, source_text_encrypted, parsed_json_encrypted FROM templates WHERE id = ?'
+	);
+	for (const id of templateIds) {
+		const row = selectTemplate.get(id) as { id: number; source_text_encrypted: Buffer; parsed_json_encrypted: Buffer };
+		const newSource = reEncryptRow(row.source_text_encrypted);
+		const newParsed = reEncryptRow(row.parsed_json_encrypted);
+		updateTemplate.run(newSource, newParsed, row.id);
+	}
+
+	// Process template_presets
+	const presetIds = database.prepare('SELECT id FROM template_presets').pluck().all() as number[];
+	const updatePreset = database.prepare(
+		'UPDATE template_presets SET source_text_encrypted = ?, parsed_json_encrypted = ? WHERE id = ?'
+	);
+	const selectPreset = database.prepare(
+		'SELECT id, source_text_encrypted, parsed_json_encrypted FROM template_presets WHERE id = ?'
+	);
+	for (const id of presetIds) {
+		const row = selectPreset.get(id) as { id: number; source_text_encrypted: Buffer; parsed_json_encrypted: Buffer };
+		const newSource = reEncryptRow(row.source_text_encrypted);
+		const newParsed = reEncryptRow(row.parsed_json_encrypted);
+		updatePreset.run(newSource, newParsed, row.id);
+	}
+
+	// Mark migration as complete
+	const statement = "INSERT INTO config (key, value) VALUES ('encryption_key_migrated_v2'," +
+		" 'true') ON CONFLICT(key) DO UPDATE SET value = 'true'";
+	database.prepare(statement).run();
 }
 
 export function backfillTemplateParsedJson(database: Database.Database): void {
