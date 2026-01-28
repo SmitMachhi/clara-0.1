@@ -4,7 +4,7 @@ Goal: Fix 4 critical production issues: (1) OOM crashes from 160MB heap limit wi
 
 ## IMPORTANT: Rules for implementing agent
 
-1. **Follow `clara-0.1/AGENTS.md` rules** (tabs, single quotes, file headers, lean pages, DRY, etc.)
+1. **Follow `AGENTS.md` rules** (tabs, single quotes, file headers, lean pages, DRY, etc.)
 2. **Implement ONE step at a time.** After each step, write a brief log paragraph at the bottom of this file under "## Implementation Logs".
    2.2. **Before starting any step, read the Implementation Logs first** so you do not repeat work.
 3. **After each step**, run `npx svelte-check --threshold error` inside the `clara-0.1` directory and fix any errors BEFORE moving to the next step.
@@ -232,8 +232,8 @@ sqlite3 /data/journal.db.backup-XXXX "SELECT count(*) FROM entries;"
 **Problem:** Node.js heap limit is too high for 256MB RAM system with SQLite overhead.
 
 **Files to update:**
-- `clara-0.1/fly.toml`
-- `clara-0.1/src/lib/db/connection.ts`
+- `fly.toml`
+- `src/lib/db/connection.ts`
 
 **What to change:**
 
@@ -255,7 +255,7 @@ sqlite3 /data/journal.db.backup-XXXX "SELECT count(*) FROM entries;"
      UV_THREADPOOL_SIZE = "4"
    ```
 
-2. **Add graceful shutdown to connection.ts** - Read the current file first at `clara-0.1/src/lib/db/connection.ts`:
+2. **Add graceful shutdown to connection.ts** - Read the current file first at `src/lib/db/connection.ts`:
    - Keep all existing code including DATA_DIR, DB_PATH, EMPTY_TEXT_PLACEHOLDER, EMPTY_COORDINATE_PLACEHOLDER
    - Keep the `getDbInternal()` and `getDb()` functions unchanged
    - Add AFTER the `getDb()` function:
@@ -273,7 +273,7 @@ sqlite3 /data/journal.db.backup-XXXX "SELECT count(*) FROM entries;"
    }
    ```
 
-3. **Export closeDb function** - Add `closeDb` to the exports in `clara-0.1/src/lib/db.ts`:
+3. **Export closeDb function** - Add `closeDb` to the exports in `src/lib/db.ts`:
    - Read current exports at line 1-13
    - Add to the export list: `export { closeDb } from './db/connection.js';`
 
@@ -292,12 +292,12 @@ sqlite3 /data/journal.db.backup-XXXX "SELECT count(*) FROM entries;"
 **Problem:** Location and quote caches grow unbounded with no eviction policy.
 
 **Files to update:**
-- `clara-0.1/src/lib/db/locations.ts`
-- `clara-0.1/src/lib/db/quotes.ts`
+- `src/lib/db/locations.ts`
+- `src/lib/db/quotes.ts`
 
 **What to change:**
 
-1. **Update locations.ts cache** - Read current file at `clara-0.1/src/lib/db/locations.ts`:
+1. **Update locations.ts cache** - Read current file at `src/lib/db/locations.ts`:
    
    a. Replace the simple cache interface (lines 14-22) with bounded cache:
    ```typescript
@@ -334,7 +334,7 @@ sqlite3 /data/journal.db.backup-XXXX "SELECT count(*) FROM entries;"
    locationCache.timestamp = Date.now();
    ```
 
-2. **Update quotes.ts cache** - Read current file at `clara-0.1/src/lib/db/quotes.ts`:
+2. **Update quotes.ts cache** - Read current file at `src/lib/db/quotes.ts`:
    
    a. Add cache size limit constant after line 32:
    ```typescript
@@ -368,13 +368,13 @@ sqlite3 /data/journal.db.backup-XXXX "SELECT count(*) FROM entries;"
 **Problem:** Salt is derived from the secret itself, weakening encryption.
 
 **Files to update:**
-- `clara-0.1/src/lib/server/crypto.ts`
-- `clara-0.1/src/lib/db/sessions.ts`
-- `clara-0.1/src/lib/db/schema.ts`
+- `src/lib/server/crypto.ts`
+- `src/lib/db/sessions.ts`
+- `src/lib/db/schema.ts`
 
 **What to change:**
 
-1. **Update crypto.ts** - Read current file at `clara-0.1/src/lib/server/crypto.ts`:
+1. **Update crypto.ts** - Read current file at `src/lib/server/crypto.ts`:
    
    a. Keep all existing imports and constants (lines 1-7)
    
@@ -484,7 +484,7 @@ sqlite3 /data/journal.db.backup-XXXX "SELECT count(*) FROM entries;"
    // Remove the getLegacyKey() function entirely (lines 10-16)
    ```
 
-2. **Add schema migration** - Read `clara-0.1/src/lib/db/schema.ts` and add AFTER the existing table creation (after line 97):
+2. **Add schema migration** - Read `src/lib/db/schema.ts` and add AFTER the existing table creation (after line 97):
    ```typescript
    // Migration: Ensure encryption salt exists
    const saltRow = db.prepare("SELECT value FROM config WHERE key = 'encryption_salt'").get() as { value: string } | undefined;
@@ -510,11 +510,11 @@ sqlite3 /data/journal.db.backup-XXXX "SELECT count(*) FROM entries;"
 **Problem:** Current backup uses file copy which is vulnerable to race conditions and corruption.
 
 **Files to update:**
-- `clara-0.1/src/lib/db/backups.ts`
+- `src/lib/db/backups.ts`
 
 **What to change:**
 
-1. **Replace file copy with SQLite backup API** - Read current file at `clara-0.1/src/lib/db/backups.ts`:
+1. **Replace file copy with SQLite backup API** - Read current file at `src/lib/db/backups.ts`:
    
    a. Keep imports and constants (lines 1-11) but add backup verification:
    ```typescript
@@ -689,12 +689,12 @@ sqlite3 /data/journal.db.backup-XXXX "SELECT count(*) FROM entries;"
 **Problem:** Entry creation has multiple queries without transaction wrapping, causing race conditions.
 
 **Files to update:**
-- `clara-0.1/src/routes/api/entries/+server.ts`
-- `clara-0.1/src/lib/db/quotes.ts`
+- `src/routes/api/entries/+server.ts`
+- `src/lib/db/quotes.ts`
 
 **What to change:**
 
-1. **Add transaction wrapper to entries API** - Read current file at `clara-0.1/src/routes/api/entries/+server.ts`:
+1. **Add transaction wrapper to entries API** - Read current file at `src/routes/api/entries/+server.ts`:
    
    a. Add import for database at top of file (line 1-15):
    ```typescript
@@ -812,7 +812,7 @@ sqlite3 /data/journal.db.backup-XXXX "SELECT count(*) FROM entries;"
    };
    ```
 
-2. **Add atomic quote function** - Add to `clara-0.1/src/lib/db/quotes.ts`:
+2. **Add atomic quote function** - Add to `src/lib/db/quotes.ts`:
    ```typescript
    /**
     * Atomically get or create daily quote within a transaction.
@@ -871,12 +871,12 @@ sqlite3 /data/journal.db.backup-XXXX "SELECT count(*) FROM entries;"
    }
    ```
 
-3. **Export the atomic function** - Add to `clara-0.1/src/lib/db/index.ts`:
+3. **Export the atomic function** - Add to `src/lib/db/index.ts`:
    ```typescript
    export { getOrCreateDailyQuoteAtomic } from './db/quotes.js';
    ```
 
-4. **Import Database type** - At top of `clara-0.1/src/lib/db/quotes.ts`:
+4. **Import Database type** - At top of `src/lib/db/quotes.ts`:
    ```typescript
    import type Database from 'better-sqlite3';
    ```
@@ -896,11 +896,11 @@ sqlite3 /data/journal.db.backup-XXXX "SELECT count(*) FROM entries;"
 **Problem:** No cleanup on process termination, leaving database connections open.
 
 **Files to update:**
-- `clara-0.1/src/hooks.server.ts`
+- `src/hooks.server.ts`
 
 **What to change:**
 
-1. **Add shutdown handler** - Read current file at `clara-0.1/src/hooks.server.ts`:
+1. **Add shutdown handler** - Read current file at `src/hooks.server.ts`:
    
    a. Add import at top (after line 6):
    ```typescript

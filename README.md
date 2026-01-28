@@ -58,7 +58,7 @@ That's it. No social features. No sharing. Just you and your thoughts.
 ```bash
 # Clone it
 git clone <your-repo>
-cd morning-clarity-journal
+# No cd needed - you are at project root
 
 # Install stuff
 npm install

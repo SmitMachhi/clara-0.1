@@ -21,7 +21,7 @@ Then complete DNS at your registrar (see step 4 below) and run `flyctl certs che
 ### 1. Ensure you’re in the app directory and logged in
 
 ```bash
-cd morning-clarity-journal
+# No cd needed - already at project root
 flyctl auth whoami   # confirm you’re logged in
 ```
 
