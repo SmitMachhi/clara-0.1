@@ -2,6 +2,8 @@
 
 ## Core principles
 - Feature-first structure: group by feature, not file type.
+- write code for humans not bots, it needs to be understood by a human at one glance
+- the goal isnt to write code that works but to code that is obvious
 - Single source of truth: never duplicate or store derived state; compute it from the source.
 - DRY: no duplicate logic, literals, or structures.
 - No magic literals: extract repeated values into constants.
