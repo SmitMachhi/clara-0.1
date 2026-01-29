@@ -149,17 +149,16 @@ export function parseTemplateSource(
 			fields: []
 		};
 
-		if (hpPlaceholder !== null) {
-			fieldIndex += 1;
-			const hpFieldId = `f${fieldIndex}`;
-			question.fields.push({
-				id: hpFieldId,
-				label: '',
-				placeholder: hpPlaceholder,
-				type: 'hp'
-			});
-			fieldIds.push(hpFieldId);
-		}
+		// Always create an HP field for the section title, regardless of whether it has a label
+		fieldIndex += 1;
+		const hpFieldId = `f${fieldIndex}`;
+		question.fields.push({
+			id: hpFieldId,
+			label: '',
+			placeholder: hpPlaceholder ?? '',
+			type: 'hp'
+		});
+		fieldIds.push(hpFieldId);
 
 		MP_REGEX.lastIndex = 0;
 		let mpMatch: RegExpExecArray | null;

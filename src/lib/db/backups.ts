@@ -88,24 +88,12 @@ export async function createBackup(): Promise<string> {
 	const tempPath = `${backupPath}.tmp`;
 
 	try {
-		// Use SQLite's native backup API for consistency
-		const backupDb = new Database(tempPath);
-
-		try {
-			// Perform backup with page-by-page copying (allows concurrent reads)
-			const backup = database.backup(backupDb);
-
-			// Step through backup in chunks to minimize lock time
-			let remaining = backup.remaining;
-			while (remaining > 0) {
-				backup.step(BACKUP_CHUNK_PAGES);
-				remaining = backup.remaining;
+		// Use SQLite's native backup API with progress callback
+		const metadata = await database.backup(tempPath, {
+			progress: (info) => {
+				return Math.min(BACKUP_CHUNK_PAGES, info.remainingPages);
 			}
-
-			backup.finish();
-		} finally {
-			backupDb.close();
-		}
+		});
 
 		// Verify backup integrity before finalizing
 		const integrityCheck = verifyBackupIntegrity(tempPath);
