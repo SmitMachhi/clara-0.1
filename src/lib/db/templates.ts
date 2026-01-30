@@ -1,18 +1,19 @@
 import { decrypt, encrypt } from '$lib/server/crypto.js';
-import { parseTemplateSource } from '../template.js';
-import type { TemplateModel } from '../template.js';
+import { assertValidTemplateSource, parseTemplateSource, type TemplateModel } from '../template.js';
 import { EMPTY_TEXT_PLACEHOLDER, getDb } from './connection.js';
 import {
 	backfillEntryTemplateIds as backfillEntryTemplateIdsWithDb,
 	ensureActiveTemplate as ensureActiveTemplateWithDb,
 	ensureTemplatePresetSeed as ensureTemplatePresetSeedWithDb,
 	getActiveTemplate as getActiveTemplateWithDb,
+	getDefaultPresetId as getDefaultPresetIdWithDb,
 	getTemplateById as getTemplateByIdWithDb,
 	setActiveTemplate as setActiveTemplateWithDb
 } from './template-utils.js';
 import type { TemplatePresetSummary } from './types.js';
 
 export function createTemplateVersion(sourceText: string): number {
+	assertValidTemplateSource(sourceText);
 	const database = getDb();
 	const encrypted = encrypt(sourceText);
 	const encryptedBuffer = Buffer.from(encrypted, 'utf8');
@@ -25,11 +26,8 @@ export function createTemplateVersion(sourceText: string): number {
 }
 
 export function createTemplatePreset(name: string, sourceText: string): number {
+	assertValidTemplateSource(sourceText);
 	const database = getDb();
-	const { errors } = parseTemplateSource(sourceText);
-	if (errors.length > 0) {
-		throw new Error(`Invalid template: ${errors.join(', ')}`);
-	}
 	const encrypted = encrypt(sourceText);
 	const encryptedBuffer = Buffer.from(encrypted, 'utf8');
 	const result = database.prepare(`
@@ -47,6 +45,26 @@ export function getTemplatePresets(): TemplatePresetSummary[] {
 		FROM template_presets
 		ORDER BY created_at DESC
 	`).all() as TemplatePresetSummary[];
+}
+
+export function getTemplatePresetSourceById(
+	id: number
+): { id: number; name: string; sourceText: string } | null {
+	const database = getDb();
+	const row = database.prepare(`
+		SELECT id, name, source_text_encrypted
+		FROM template_presets
+		WHERE id = ?
+	`).get(id) as {
+		id: number;
+		name: string;
+		source_text_encrypted: Buffer;
+	} | undefined;
+
+	if (!row) return null;
+
+	const sourceText = decrypt(row.source_text_encrypted.toString('utf8'));
+	return { id: row.id, name: row.name, sourceText };
 }
 
 export function getTemplatePresetById(
@@ -88,11 +106,19 @@ export function renameTemplatePreset(id: number, name: string): boolean {
 
 export function deleteTemplatePreset(id: number): boolean {
 	const database = getDb();
+	const defaultPresetId = getDefaultPresetIdWithDb(database);
+	if (defaultPresetId !== null && id === defaultPresetId) {
+		return false;
+	}
 	const result = database.prepare(`
 		DELETE FROM template_presets
 		WHERE id = ?
 	`).run(id);
 	return result.changes > 0;
+}
+
+export function getDefaultPresetId(): number | null {
+	return getDefaultPresetIdWithDb(getDb());
 }
 
 export function setActiveTemplate(id: number): void {

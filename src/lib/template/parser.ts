@@ -4,6 +4,13 @@ const MAX_TEMPLATE_BYTES = 20 * 1024;
 const MAX_TEMPLATE_LINES = 200;
 const textEncoder = new TextEncoder();
 
+export class TemplateValidationError extends Error {
+	constructor(message: string, public details: string[]) {
+		super(message);
+		this.name = 'TemplateValidationError';
+	}
+}
+
 const HP_REGEX = /<hp([^>]*)>([\s\S]*?)<\/hp>/gi;
 const MP_REGEX = /<mp([^>]*)>([\s\S]*?)<\/mp>/gi;
 const TAG_REGEX = /<\/?([a-zA-Z]+)([^>]*)>/g;
@@ -192,4 +199,12 @@ export function parseTemplateSource(
 		parsed: errors.length > 0 ? emptyParsed : { questions, fieldIds },
 		errors
 	};
+}
+
+export function assertValidTemplateSource(sourceText: string): TemplateModel {
+	const result = parseTemplateSource(sourceText);
+	if (result.errors.length > 0) {
+		throw new TemplateValidationError('Template validation failed', result.errors);
+	}
+	return result.parsed;
 }

@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import {
 	backfillEntryTemplateIds,
 	ensureActiveTemplate,
+	ensureDefaultPresetId,
 	ensureTemplatePresetSeed
 } from './template-utils.js';
 import {
@@ -137,6 +138,7 @@ export function runMigrations(db: Database.Database): void {
 	const activeTemplateId = ensureActiveTemplate(db);
 	backfillEntryTemplateIds(db, activeTemplateId);
 	ensureTemplatePresetSeed(db);
+	ensureDefaultPresetId(db);
 	migrateEncryptedDataToNewKey(db);
 }
 

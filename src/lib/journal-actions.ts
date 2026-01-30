@@ -1,4 +1,4 @@
-import type { Location, Entry } from '$lib/db.js';
+import type { Location, Entry, EntryYearSummary } from '$lib/db.js';
 import { GPS } from '$lib/constants.js';
 import { handleGeolocationError, findMatchingPreset } from '$lib/location-utils.js';
 import { validateCoordinates } from '$lib/validation.js';
@@ -19,7 +19,9 @@ export async function fetchLocations(): Promise<Location[]> {
 	return Array.isArray(data.locations) ? data.locations : [];
 }
 
-export async function fetchEntries(year?: number): Promise<{ entries: Entry[]; entryDates: string[] }> {
+export async function fetchEntries(
+	year?: number
+): Promise<{ entries: Entry[]; entryDates: string[]; yearSummaries: EntryYearSummary[] }> {
 	const url = new URL('/api/entries', window.location.origin);
 	if (year !== undefined) {
 		url.searchParams.set('year', year.toString());
@@ -31,7 +33,8 @@ export async function fetchEntries(year?: number): Promise<{ entries: Entry[]; e
 	const data = await res.json();
 	return {
 		entries: Array.isArray(data.recentEntries) ? data.recentEntries : [],
-		entryDates: Array.isArray(data.entryDates) ? data.entryDates : []
+		entryDates: Array.isArray(data.entryDates) ? data.entryDates : [],
+		yearSummaries: Array.isArray(data.yearSummaries) ? data.yearSummaries : []
 	};
 }
 

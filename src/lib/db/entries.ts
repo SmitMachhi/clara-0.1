@@ -10,7 +10,7 @@ import {
 	encryptOptionalNumber,
 	encryptOptionalString
 } from './crypto-helpers.js';
-import type { Entry, EntryWithData } from './types.js';
+import type { Entry, EntryWithData, EntryYearSummary } from './types.js';
 
 export interface EntryWithTemplate {
 	entry: EntryWithData;
@@ -77,7 +77,10 @@ export function getEntryWithTemplate(date: string): EntryWithTemplate | null {
 	const activeTemplate = getActiveTemplate(database);
 	if (!activeTemplate) {
 		const defaultId = ensureActiveTemplate(database);
-		const defaultTemplate = getTemplateById(database, defaultId)!;
+		const defaultTemplate = getTemplateById(database, defaultId);
+		if (!defaultTemplate) {
+			throw new Error('Failed to load default template after creation');
+		}
 		return {
 			entry,
 			template: defaultTemplate.parsed,
@@ -178,14 +181,17 @@ export function getAllEntries(): Entry[] {
 		};
 	});
 }
-export function getRecentEntrySummaries(limit: number): Entry[] {
+export function getRecentEntrySummaries(limit: number, year?: number): Entry[] {
 	const database = getDb();
-	const rows = database.prepare(`
+	const queryBase = `
 		SELECT id, date, timestamp, location_id_encrypted, template_id, created_at
 		FROM entries
-		ORDER BY date DESC
-		LIMIT ?
-	`).all(limit) as Array<{
+	`;
+	const query = year
+		? `${queryBase} WHERE date >= ? AND date <= ? ORDER BY date DESC LIMIT ?`
+		: `${queryBase} ORDER BY date DESC LIMIT ?`;
+
+	let rows: Array<{
 		id: number;
 		date: string;
 		timestamp: string;
@@ -193,6 +199,12 @@ export function getRecentEntrySummaries(limit: number): Entry[] {
 		template_id: number | null;
 		created_at: string;
 	}>;
+	if (year) {
+		const { startDate, endDate } = getYearDateRange(year);
+		rows = database.prepare(query).all(startDate, endDate, limit) as typeof rows;
+	} else {
+		rows = database.prepare(query).all(limit) as typeof rows;
+	}
 	const locationMap = buildLocationNameMap();
 	return rows.map(row => {
 		const locationId = decryptOptionalNumber(row.location_id_encrypted);
@@ -260,14 +272,35 @@ export function getEntryDates(): string[] {
 	return rows.map(r => r.date);
 }
 
+function getYearDateRange(year: number): { startDate: string; endDate: string } {
+	return {
+		startDate: `${year}-01-01`,
+		endDate: `${year}-12-31`
+	};
+}
+
 export function getEntryDatesForYear(year: number): string[] {
 	const database = getDb();
-	const startDate = `${year}-01-01`;
-	const endDate = `${year}-12-31`;
+	const { startDate, endDate } = getYearDateRange(year);
 	const rows = database.prepare(
 		'SELECT date FROM entries WHERE date >= ? AND date <= ? ORDER BY date'
 	).all(startDate, endDate) as { date: string }[];
 	return rows.map(r => r.date);
+}
+
+export function getEntryYearSummaries(): EntryYearSummary[] {
+	const database = getDb();
+	const rows = database.prepare(`
+		SELECT substr(date, 1, 4) as year, COUNT(*) as entry_count
+		FROM entries
+		GROUP BY year
+		ORDER BY year DESC
+	`).all() as Array<{ year: string; entry_count: number }>;
+
+	return rows.map(row => ({
+		year: parseInt(row.year, 10),
+		entryCount: row.entry_count
+	})).filter(summary => !isNaN(summary.year));
 }
 
 interface EntryRawData {

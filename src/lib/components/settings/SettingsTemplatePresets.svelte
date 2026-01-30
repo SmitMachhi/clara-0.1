@@ -17,6 +17,7 @@
 		presetLimit,
 		renamingPresetId,
 		renamingPresetName,
+		defaultPresetId,
 		onSelectPreset,
 		onClearPreset,
 		onPresetNameChange,
@@ -38,6 +39,7 @@
 		presetLimit: number;
 		renamingPresetId: number | null;
 		renamingPresetName: string;
+		defaultPresetId: number | null;
 		onSelectPreset: (value: string) => void;
 		onClearPreset: () => void;
 		onPresetNameChange: (value: string) => void;
@@ -123,7 +125,8 @@
 						<button
 							class="sg-btn sg-btn-secondary"
 							onclick={() => onDeletePreset(preset.id)}
-							disabled={isSavingTemplate}
+							disabled={isSavingTemplate || defaultPresetId === preset.id}
+							title={defaultPresetId === preset.id ? 'Cannot delete default preset' : ''}
 						>
 							Delete
 						</button>

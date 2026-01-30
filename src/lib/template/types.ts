@@ -1,19 +1,3 @@
-export interface JournalData {
-	whoAmIDoingThisFor: string;
-	whatMakingAnxious: string;
-	whatAvoiding: string;
-	whyAvoiding: string;
-	fearUnderneath: string;
-	evidenceFearNotTrue: string;
-	upsideIfAct: string;
-	consumeInsteadProduce: string;
-	exactDistraction: string;
-	wasteToday: string;
-	commitment1: string;
-	commitment2: string;
-	commitment3: string;
-}
-
 export interface TemplateBlock {
 	type: 'hp' | 'mp';
 	text: string;

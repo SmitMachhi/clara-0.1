@@ -10,6 +10,25 @@ export function setActiveTemplate(database: Database.Database, id: number): void
 	database.prepare(statement).run(id.toString());
 }
 
+function findFirstValidTemplateId(database: Database.Database): number | null {
+	const rows = database.prepare(
+		'SELECT id, source_text_encrypted FROM templates ORDER BY id ASC'
+	).all() as Array<{
+		id: number;
+		source_text_encrypted: Buffer;
+	}>;
+
+	for (const row of rows) {
+		const sourceText = decrypt(row.source_text_encrypted.toString('utf8'));
+		const { errors } = parseTemplateSource(sourceText);
+		if (errors.length === 0) {
+			return row.id;
+		}
+	}
+
+	return null;
+}
+
 export function getTemplateById(
 	database: Database.Database,
 	id: number
@@ -48,17 +67,16 @@ export function getActiveTemplate(
 
 export function ensureActiveTemplate(database: Database.Database): number {
 	const existing = getActiveTemplate(database);
-	if (existing) return existing.id;
-	const templateCount = database.prepare(
-		'SELECT COUNT(1) as count FROM templates'
-	).get() as { count: number };
-	if (templateCount.count > 0) {
-		const row = database.prepare(
-			'SELECT id FROM templates ORDER BY id ASC LIMIT 1'
-		).get() as { id: number };
-		setActiveTemplate(database, row.id);
-		return row.id;
+	if (existing) {
+		return existing.id;
 	}
+
+	const firstValidId = findFirstValidTemplateId(database);
+	if (firstValidId !== null) {
+		setActiveTemplate(database, firstValidId);
+		return firstValidId;
+	}
+
 	const sourceText = DEFAULT_TEMPLATE_TEXT;
 	const parseResult = parseTemplateSource(sourceText);
 	if (parseResult.errors.length > 0) {
@@ -87,6 +105,16 @@ export function backfillEntryTemplateIds(
 	).run(activeTemplateId);
 }
 
+export function getDefaultPresetId(database: Database.Database): number | null {
+	const row = database.prepare(
+		"SELECT value FROM config WHERE key = 'default_template_preset_id'"
+	).get() as { value: string } | undefined;
+	if (!row?.value) return null;
+	const presetId = Number(row.value);
+	if (!Number.isFinite(presetId)) return null;
+	return presetId;
+}
+
 export function ensureTemplatePresetSeed(database: Database.Database): void {
 	const count = database.prepare(
 		'SELECT COUNT(1) as count FROM template_presets'
@@ -96,7 +124,7 @@ export function ensureTemplatePresetSeed(database: Database.Database): void {
 	if (!active) return;
 	const encrypted = encrypt(active.sourceText);
 	const parsedJsonEncrypted = encrypt(JSON.stringify(active.parsed));
-	database.prepare(
+	const result = database.prepare(
 		'INSERT INTO template_presets (name, source_text_encrypted, parsed_json, parsed_json_encrypted)' +
 		' VALUES (?, ?, ?, ?)'
 	).run(
@@ -105,4 +133,42 @@ export function ensureTemplatePresetSeed(database: Database.Database): void {
 		EMPTY_TEXT_PLACEHOLDER,
 		Buffer.from(parsedJsonEncrypted, 'utf8')
 	);
+	const presetId = result.lastInsertRowid as number;
+	const statement = "INSERT INTO config (key, value) VALUES ('default_template_preset_id', ?)" +
+		' ON CONFLICT(key) DO UPDATE SET value = excluded.value';
+	database.prepare(statement).run(presetId.toString());
+}
+
+export function ensureDefaultPresetId(database: Database.Database): number | null {
+	const existing = getDefaultPresetId(database);
+	if (existing !== null) {
+		const presetExists = database.prepare(
+			'SELECT 1 FROM template_presets WHERE id = ?'
+		).get(existing);
+		if (presetExists) {
+			return existing;
+		}
+	}
+
+	const defaultNameRow = database.prepare(
+		"SELECT id FROM template_presets WHERE name = 'Default Template' LIMIT 1"
+	).get() as { id: number } | undefined;
+
+	let presetId: number | null;
+	if (defaultNameRow) {
+		presetId = defaultNameRow.id;
+	} else {
+		const oldestRow = database.prepare(
+			'SELECT id FROM template_presets ORDER BY created_at ASC, id ASC LIMIT 1'
+		).get() as { id: number } | undefined;
+		presetId = oldestRow?.id ?? null;
+	}
+
+	if (presetId !== null) {
+		const statement = "INSERT INTO config (key, value) VALUES ('default_template_preset_id', ?)" +
+			' ON CONFLICT(key) DO UPDATE SET value = excluded.value';
+		database.prepare(statement).run(presetId.toString());
+	}
+
+	return presetId;
 }

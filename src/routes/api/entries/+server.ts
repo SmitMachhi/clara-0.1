@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import {
 	getActiveTemplate,
-	getEntryDates,
 	getEntryDatesForYear,
+	getEntryYearSummaries,
 	getRecentEntrySummaries,
 	getDb
 } from '$lib/db.js';
@@ -23,9 +23,10 @@ export const GET: RequestHandler = async ({ url }) => {
 	const year = yearParam ? parseInt(yearParam, 10) : currentYear;
 	const validYear = !isNaN(year) && year > 1900 && year < 2100 ? year : currentYear;
 	const entryDates = getEntryDatesForYear(validYear);
-	const recentEntries = getRecentEntrySummaries(DISPLAY.RECENT_ENTRIES_LIMIT);
+	const recentEntries = getRecentEntrySummaries(DISPLAY.RECENT_ENTRIES_LIMIT, validYear);
+	const yearSummaries = getEntryYearSummaries();
 
-	return successResponse({ recentEntries, entryDates }, noStoreHeaders());
+	return successResponse({ recentEntries, entryDates, yearSummaries }, noStoreHeaders());
 };
 
 interface EntryPayload {

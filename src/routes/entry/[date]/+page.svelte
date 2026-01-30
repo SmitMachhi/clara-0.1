@@ -6,7 +6,7 @@
 	import { page } from '$app/stores';
 	import { slide } from 'svelte/transition';
 	import type { TemplateModel } from '$lib/template.js';
-	import type { EntryWithData, JournalData } from '$lib/db.js';
+	import type { EntryWithData } from '$lib/db.js';
 	import { formatCoordinate } from '$lib/location-utils.js';
 	import { getLegacyFieldLabel } from '$lib/legacy-field-labels.js';
 	import { getTimestampParts, hasLegacyContent } from '$lib/entry-helpers.js';
@@ -42,7 +42,7 @@
 				}
 				const loadedEntry = {
 					...apiEntry,
-					data: apiEntry.data as JournalData
+					data: apiEntry.data as Record<string, string>
 				};
 				entry = loadedEntry;
 				template = apiEntry.template as TemplateModel;

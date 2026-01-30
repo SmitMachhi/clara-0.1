@@ -110,6 +110,9 @@
 				<textarea
 					class="sg-ide-textarea"
 					rows="12"
+					wrap="off"
+					spellcheck="false"
+					autocapitalize="off"
 					bind:this={templateEditorRef}
 					value={templateDraft}
 					oninput={(event) => onTemplateDraftChange((event.target as HTMLTextAreaElement).value)}

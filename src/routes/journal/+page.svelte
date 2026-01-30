@@ -7,7 +7,7 @@
 	import { goto } from '$app/navigation';
 	import type { TemplateModel } from '$lib/template.js';
 	import { formatDateISO, isPastCutoff, getYearDates, getDateTimeParts } from '$lib/utils.js';
-	import type { Location, Entry } from '$lib/db.js';
+	import type { Location, Entry, EntryYearSummary } from '$lib/db.js';
 	import { TIME } from '$lib/constants.js';
 	import { captureGps } from '$lib/journal-actions.js';
 	import { apiFetch } from '$lib/api-client.js';
@@ -15,6 +15,7 @@
 		DRAFT_DEBOUNCE_MS,
 		DRAFT_STORAGE_KEY,
 		loadJournalPageData,
+		loadYearEntries,
 		restoreDraft,
 		saveDraft
 	} from '$lib/journal-page-helpers.js';
@@ -31,13 +32,16 @@
 	let capturedLng = $state<number | null>(null);
 	let isCapturingGps = $state(false);
 	let gpsError = $state('');
-	let entries = $state<Entry[]>([]);
-	let entryDates = $state<string[]>([]);
+	let yearEntries = $state<Entry[]>([]);
+	let yearEntryDates = $state<string[]>([]);
+	let currentYearEntryDates = $state<string[]>([]);
+	let yearSummaries = $state<EntryYearSummary[]>([]);
 	let dailyQuote = $state<string | null>(null);
 	let isSaving = $state(false);
 	let saveError = $state('');
 	let isPastTime = $state(false);
-	let hasEntryToday = $state(false);
+	let isYearLoading = $state(false);
+	let yearLoadError = $state('');
 	let dateParts = $state(getDateTimeParts(new Date()));
 	let sidebarOpen = $state(false);
 	let settingsOpen = $state(false);
@@ -47,7 +51,8 @@
 	let draftSaveTimeout: ReturnType<typeof setTimeout> | null = null;
 	const today = formatDateISO(new Date());
 	const currentYear = new Date().getFullYear();
-	const yearDates = getYearDates(currentYear);
+	let selectedYear = $state(currentYear);
+	const yearDates = $derived(getYearDates(selectedYear));
 	const hpFieldIds = $derived.by(() => {
 		if (!template) return [];
 		return template.questions
@@ -61,6 +66,7 @@
 	let completedFields = $derived(completedFieldsCount);
 	let totalFields = $derived(hpFieldIds.length);
 	let isComplete = $derived(completedFieldsCount === totalFields);
+	let hasEntryToday = $derived(currentYearEntryDates.includes(today));
 
 	function syncCompletedFieldsCount(): void {
 		completedFieldsCount = hpFieldIds.filter(id => formData[id]?.trim().length > 0).length;
@@ -124,7 +130,6 @@
 
 			const ok = await loadAllData();
 			if (!ok) return;
-			hasEntryToday = entryDates.includes(today);
 			formData = restoreDraft(formData);
 			syncCompletedFieldsCount();
 		};
@@ -144,15 +149,21 @@
 	async function loadAllData(): Promise<boolean> {
 		isLoadingData = true;
 		loadError = '';
-		const result = await loadJournalPageData();
+		yearLoadError = '';
+		isYearLoading = false;
+		const result = await loadJournalPageData(selectedYear);
 		isLoadingData = false;
 		if (!result.data) {
 			loadError = result.error;
 			return false;
 		}
 		locations = result.data.locations;
-		entries = result.data.entries;
-		entryDates = result.data.entryDates;
+		yearEntries = result.data.entries;
+		yearEntryDates = result.data.entryDates;
+		yearSummaries = result.data.yearSummaries;
+		if (selectedYear === currentYear) {
+			currentYearEntryDates = result.data.entryDates;
+		}
 		template = result.data.template;
 		formData = result.data.formData;
 		dailyQuote = result.data.dailyQuote;
@@ -163,17 +174,22 @@
 	async function retryLoad() {
 		const ok = await loadAllData();
 		if (ok) {
-			hasEntryToday = entryDates.includes(today);
 			formData = restoreDraft(formData);
 			syncCompletedFieldsCount();
 		}
 	}
 
 	async function handleTemplateChanged() {
-		const result = await loadJournalPageData();
+		const result = await loadJournalPageData(selectedYear);
 		if (!result.data) {
 			console.error('Failed to reload template');
 			return;
+		}
+		yearEntries = result.data.entries;
+		yearEntryDates = result.data.entryDates;
+		yearSummaries = result.data.yearSummaries;
+		if (selectedYear === currentYear) {
+			currentYearEntryDates = result.data.entryDates;
 		}
 		template = result.data.template;
 		formData = result.data.formData;
@@ -182,12 +198,39 @@
 	}
 
 	async function handleQuotesChanged() {
-		const result = await loadJournalPageData();
+		const result = await loadJournalPageData(selectedYear);
 		if (!result.data) {
 			console.error('Failed to reload quotes');
 			return;
 		}
+		yearEntries = result.data.entries;
+		yearEntryDates = result.data.entryDates;
+		yearSummaries = result.data.yearSummaries;
+		if (selectedYear === currentYear) {
+			currentYearEntryDates = result.data.entryDates;
+		}
 		dailyQuote = result.data.dailyQuote;
+	}
+
+	async function handleYearChange(nextYear: number) {
+		if (nextYear === selectedYear || isYearLoading) return;
+		const previousYear = selectedYear;
+		selectedYear = nextYear;
+		yearLoadError = '';
+		isYearLoading = true;
+		const result = await loadYearEntries(nextYear);
+		isYearLoading = false;
+		if (!result.data) {
+			yearLoadError = result.error;
+			selectedYear = previousYear;
+			return;
+		}
+		yearEntries = result.data.entries;
+		yearEntryDates = result.data.entryDates;
+		yearSummaries = result.data.yearSummaries;
+		if (nextYear === currentYear) {
+			currentYearEntryDates = result.data.entryDates;
+		}
 	}
 
 	async function handleSubmit() {
@@ -257,7 +300,7 @@
 
 	async function handleLocationsChanged(): Promise<boolean> {
 		try {
-			const updatedLocations = await loadJournalPageData();
+			const updatedLocations = await loadJournalPageData(selectedYear);
 			if (!updatedLocations.data) return false;
 			locations = updatedLocations.data.locations;
 			return true;
@@ -357,12 +400,21 @@
 	{/if}
 
 	<JournalSidebar
-		{entries} {entryDates} {yearDates} {currentYear}
-		{sidebarOpen} {settingsOpen}
+		entries={yearEntries}
+		entryDates={yearEntryDates}
+		{yearDates}
+		{currentYear}
+		{selectedYear}
+		{yearSummaries}
+		{isYearLoading}
+		{yearLoadError}
+		{sidebarOpen}
+		{settingsOpen}
 		onToggleSidebar={() => sidebarOpen = !sidebarOpen}
 		onCloseSidebar={() => sidebarOpen = false}
 		onOpenSidebar={() => sidebarOpen = true}
 		onOpenSettings={() => settingsOpen = !settingsOpen}
+		onSelectYear={handleYearChange}
 		onViewEntry={(date) => goto(`/entry/${date}`)}
 	/>
 </div>

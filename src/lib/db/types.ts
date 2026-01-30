@@ -1,39 +1,3 @@
-export interface JournalData {
-	whoAmIDoingThisFor: string;
-	whatMakingAnxious: string;
-	whatAvoiding: string;
-	whyAvoiding: string;
-	fearUnderneath: string;
-	evidenceFearNotTrue: string;
-	upsideIfAct: string;
-	consumeInsteadProduce: string;
-	exactDistraction: string;
-	wasteToday: string;
-	commitment1: string;
-	commitment2: string;
-	commitment3: string;
-	// Legacy fields (for backward compatibility with old entries)
-	howLikely: string;
-	howBad10Days: string;
-	howBad10Months: string;
-	howBad10Years: string;
-	realFear: string;
-	kimTest: string;
-	whatDoILose: string;
-	whatConsumeInsteadProduce: string;
-	egoWillTell: string;
-	triggerTimeSituation: string;
-	temptedWhenWillBecause: string;
-	track: string;
-	nonNeg1What: string;
-	nonNeg1When: string;
-	nonNeg2What: string;
-	nonNeg2When: string;
-	nonNeg3What: string;
-	nonNeg3When: string;
-	trapRule: string;
-}
-
 export interface Entry {
 	id: number;
 	date: string;
@@ -48,8 +12,13 @@ export interface Entry {
 	created_at: string;
 }
 
+export interface EntryYearSummary {
+	year: number;
+	entryCount: number;
+}
+
 export interface EntryWithData extends Entry {
-	data: JournalData;
+	data: Record<string, string>;
 }
 
 export interface TemplatePresetSummary {

@@ -31,3 +31,7 @@ export function errorResponse(message: string, status: number = 400, headers?: H
 export function notFoundResponse(message: string = 'Not found') {
 	return json({ success: false, error: message }, { status: 404 });
 }
+
+export function validationErrorResponse(message: string, details: string[]) {
+	return json({ success: false, error: message, details }, { status: 400 });
+}

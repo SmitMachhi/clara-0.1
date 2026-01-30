@@ -6,6 +6,11 @@ export interface Stats {
 	total: number;
 }
 
+export interface Streaks {
+	current: number;
+	best: number;
+}
+
 export interface RecentEntry {
 	date: string;
 	completed: boolean;
@@ -21,6 +26,43 @@ export function calculateStats(entryDates: string[], yearDates: string[]): Stats
 		if (entrySet.has(d)) completedCount += 1;
 	}
 	return { completedCount, total: pastDates.length };
+}
+
+export function calculateStreaks(entryDates: string[], yearDates: string[]): Streaks {
+	const entrySet = new Set(entryDates);
+	const today = formatDateISO(new Date());
+	const dates = yearDates.filter(d => d <= today);
+
+	let best = 0;
+	let running = 0;
+	for (const date of dates) {
+		if (entrySet.has(date)) {
+			running += 1;
+			if (running > best) best = running;
+		} else {
+			running = 0;
+		}
+	}
+
+	const yesterdayDate = new Date();
+	yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+	const yesterday = formatDateISO(yesterdayDate);
+	const endDate = entrySet.has(today) ? today : entrySet.has(yesterday) ? yesterday : '';
+	if (!endDate) return { current: 0, best };
+
+	const endIndex = dates.lastIndexOf(endDate);
+	if (endIndex === -1) return { current: 0, best };
+
+	let current = 0;
+	for (let i = endIndex; i >= 0; i -= 1) {
+		if (entrySet.has(dates[i])) {
+			current += 1;
+			continue;
+		}
+		break;
+	}
+
+	return { current, best };
 }
 
 export function getRecentEntries(

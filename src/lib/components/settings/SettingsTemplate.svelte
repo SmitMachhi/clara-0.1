@@ -14,6 +14,7 @@
 	let selectedPresetId = $state<number | null>(null), presetName = $state('');
 	let presetError = $state(''), presetSuccess = $state('');
 	let renamingPresetId = $state<number | null>(null), renamingPresetName = $state('');
+	let defaultPresetId = $state<number | null>(null);
 	let highlightTimeout: ReturnType<typeof setTimeout> | null = null; const PRESET_LIMIT = 5;
 	$effect(() => {
 		const draft = templateDraft;
@@ -56,6 +57,7 @@
 			if (!data?.sourceText) { templateLoadError = 'Failed to load template'; return; }
 			templateDraft = data.sourceText;
 			templatePresets = Array.isArray(data.presets) ? data.presets : [];
+			defaultPresetId = typeof data.defaultPresetId === 'number' ? data.defaultPresetId : null;
 			if (templatePresets.length > 0 && !selectedPresetId) selectedPresetId = templatePresets[0].id;
 			hasLoadedTemplate = true;
 		} catch { templateLoadError = 'Failed to load template'; }
@@ -180,7 +182,7 @@
 			presetName={presetName} presetError={presetError} presetSuccess={presetSuccess}
 			isSavingTemplate={isSavingTemplate} isLoadingTemplate={isLoadingTemplate}
 			presetLimit={PRESET_LIMIT} renamingPresetId={renamingPresetId}
-			renamingPresetName={renamingPresetName}
+			renamingPresetName={renamingPresetName} defaultPresetId={defaultPresetId}
 			onSelectPreset={(value) => { selectedPresetId = parseInt(value, 10); }}
 			onClearPreset={() => { selectedPresetId = null; }}
 			onPresetNameChange={(value) => { presetName = value; }}

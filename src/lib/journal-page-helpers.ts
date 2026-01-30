@@ -3,7 +3,7 @@ import { fetchEntries, fetchLocations } from '$lib/journal-actions.js';
 import { fetchDailyQuote } from '$lib/quote-actions.js';
 import { createEmptyFormData } from '$lib/template.js';
 import type { TemplateModel } from '$lib/template.js';
-import type { Entry, Location } from '$lib/db.js';
+import type { Entry, EntryYearSummary, Location } from '$lib/db.js';
 
 export const DRAFT_STORAGE_KEY = 'mcj-draft';
 export const DRAFT_DEBOUNCE_MS = 300;
@@ -12,17 +12,25 @@ export interface JournalPageData {
 	locations: Location[];
 	entries: Entry[];
 	entryDates: string[];
+	yearSummaries: EntryYearSummary[];
 	template: TemplateModel | null;
 	formData: Record<string, string>;
 	dailyQuote: string | null;
 }
 
-export async function loadJournalPageData(): Promise<{ data: JournalPageData | null; error: string }> {
+export interface YearEntriesData {
+	entries: Entry[];
+	entryDates: string[];
+	yearSummaries: EntryYearSummary[];
+}
+
+export async function loadJournalPageData(
+	year: number = new Date().getFullYear()
+): Promise<{ data: JournalPageData | null; error: string }> {
 	try {
-		const currentYear = new Date().getFullYear();
 		const [locationsResult, entriesResult, templateResult, dailyQuoteResult] = await Promise.all([
 			fetchLocations().catch(() => null),
-			fetchEntries(currentYear).catch(() => null),
+			fetchEntries(year).catch(() => null),
 			loadTemplate(),
 			fetchDailyQuote().catch(() => null)
 		]);
@@ -36,6 +44,7 @@ export async function loadJournalPageData(): Promise<{ data: JournalPageData | n
 				locations: locationsResult,
 				entries: entriesResult.entries,
 				entryDates: entriesResult.entryDates,
+				yearSummaries: entriesResult.yearSummaries,
 				template: templateResult.template,
 				formData: templateResult.formData,
 				dailyQuote: dailyQuoteResult
@@ -44,6 +53,24 @@ export async function loadJournalPageData(): Promise<{ data: JournalPageData | n
 		};
 	} catch {
 		return { data: null, error: 'Failed to load journal data.' };
+	}
+}
+
+export async function loadYearEntries(
+	year: number
+): Promise<{ data: YearEntriesData | null; error: string }> {
+	try {
+		const entriesResult = await fetchEntries(year);
+		return {
+			data: {
+				entries: entriesResult.entries,
+				entryDates: entriesResult.entryDates,
+				yearSummaries: entriesResult.yearSummaries
+			},
+			error: ''
+		};
+	} catch {
+		return { data: null, error: 'Failed to load year entries.' };
 	}
 }
 
