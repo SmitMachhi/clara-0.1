@@ -4,7 +4,7 @@
 #
 
 app = 'clara-0-1'
-primary_region = 'ams'
+primary_region = 'yyz'
 
 [build]
 
